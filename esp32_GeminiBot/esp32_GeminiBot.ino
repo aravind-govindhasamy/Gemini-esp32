@@ -10,21 +10,23 @@
 #define LGFX_USE_V1
 #include <LovyanGFX.hpp>
 #include "Audio.h" // Use the library header
-
-// S3-Box Audio Pins
+// S3-Box Internal Hardware Pins
 #define I2S_DOUT      15
 #define I2S_BCLK      17
 #define I2S_LRCK      47
+#define I2S_MCLK      2
+#define I2S_DIN       16
 
 #define ES8311_SDA    8
 #define ES8311_SCL    18
 #define ES8311_ADDR   0x18
+#define ES7243_ADDR   0x13 // ADC for Microphone
 
 Audio audio;
 
-// Basic ES8311 Initialization via I2C
-void writeReg(uint8_t reg, uint8_t data) {
-    Wire.beginTransmission(ES8311_ADDR);
+// Generic I2C write for Audio Codecs
+void writeReg(uint8_t addr, uint8_t reg, uint8_t data) {
+    Wire.beginTransmission(addr);
     Wire.write(reg);
     Wire.write(data);
     Wire.endTransmission();
@@ -33,21 +35,26 @@ void writeReg(uint8_t reg, uint8_t data) {
 void initES8311() {
     Wire.begin(ES8311_SDA, ES8311_SCL, 100000);
     // Reset
-    writeReg(0x00, 0x80); delay(10); writeReg(0x00, 0x00);
+    writeReg(ES8311_ADDR, 0x00, 0x80); delay(10); writeReg(ES8311_ADDR, 0x00, 0x00);
     // Power
-    writeReg(0x0D, 0x01); writeReg(0x0E, 0x02);
+    writeReg(ES8311_ADDR, 0x0D, 0x01); writeReg(ES8311_ADDR, 0x0E, 0x02);
     // Volume & DAC
-    writeReg(0x32, 0xBF); writeReg(0x14, 0x1A); writeReg(0x12, 0x00); 
+    writeReg(ES8311_ADDR, 0x32, 0xBF); writeReg(ES8311_ADDR, 0x14, 0x1A); writeReg(ES8311_ADDR, 0x12, 0x00); 
+}
+
+void initES7243() {
+    // Basic Mic Init (Enable ADC)
+    writeReg(ES7243_ADDR, 0x00, 0x01); 
+    writeReg(ES7243_ADDR, 0x06, 0x00); 
+    writeReg(ES7243_ADDR, 0x05, 0x1B); 
 }
 
 void setupAudio() {
     initES8311();
-    audio.setPinout(I2S_BCLK, I2S_LRCK, I2S_DOUT);
+    initES7243();
+    audio.setPinout(I2S_BCLK, I2S_LRCK, I2S_DOUT, I2S_MCLK);
     audio.setVolume(15);
 }
-
-const int redLedPin = 2; 
-const int blueLedPin = 5; 
 
 // ESP32-S3 Box Display Configuration (LovyanGFX)
 class LGFX : public lgfx::LGFX_Device {
@@ -91,8 +98,8 @@ public:
 
 LGFX tft;
 
-const char* apiKey = "AIzaSyCwvHSY3MsDosv1mpBf64BXKXY20iMtfdA";
-String endpoint = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" + String(apiKey);
+const char* apiKey = "";
+String endpoint = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + String(apiKey);
 String userName;
 int userAge = 7;
 String systemPrompt = "You are an embedded AI voice companion for an ESP32-S3 Box. "
@@ -103,11 +110,47 @@ String systemPrompt = "You are an embedded AI voice companion for an ESP32-S3 Bo
 "Never mention the age explicitly. Response: spoken-friendly, no long paragraphs, natural pauses.";
 bool displayInitialized = false;
 
+void drawFace(String state) {
+  if (!displayInitialized) return;
+  tft.fillScreen(TFT_BLACK);
+  int cx = 160;
+  int cy = 100;
+  
+  if (state == "Listening") {
+    // Large curious eyes
+    tft.fillCircle(cx - 50, cy, 30, TFT_CYAN);
+    tft.fillCircle(cx + 50, cy, 30, TFT_CYAN);
+    tft.fillCircle(cx - 50, cy, 10, TFT_BLACK);
+    tft.fillCircle(cx + 50, cy, 10, TFT_BLACK);
+    tft.drawArc(cx, cy + 60, 40, 42, 0, 180, TFT_WHITE);
+  } else if (state == "Thinking") {
+    // Swirling/Thinking eyes
+    tft.fillCircle(cx - 50, cy, 20, TFT_YELLOW);
+    tft.fillCircle(cx + 50, cy, 20, TFT_YELLOW);
+    tft.drawCircle(cx - 50, cy, 25, TFT_WHITE);
+    tft.drawCircle(cx + 50, cy, 25, TFT_WHITE);
+    tft.fillRect(cx - 20, cy + 50, 40, 5, TFT_WHITE);
+  } else if (state == "Speaking") {
+    // Happy/Talking face
+    tft.fillCircle(cx - 50, cy, 25, TFT_MAGENTA);
+    tft.fillCircle(cx + 50, cy, 25, TFT_MAGENTA);
+    tft.fillEllipse(cx, cy + 60, 50, 20, TFT_WHITE);
+  } else {
+    // Neutral
+    tft.fillCircle(cx - 50, cy, 20, TFT_WHITE);
+    tft.fillCircle(cx + 50, cy, 20, TFT_WHITE);
+    tft.fillRect(cx - 30, cy + 60, 60, 5, TFT_WHITE);
+  }
+}
+
 void displayPrint(String text, bool newLine = true) {
   Serial.print(text);
   if (newLine) Serial.println("");
   
   if (displayInitialized) {
+    // Print smaller at the bottom
+    tft.setTextColor(TFT_GREEN);
+    tft.setTextSize(1);
     tft.print(text);
     if (newLine) tft.print("\n");
   }
@@ -173,9 +216,7 @@ void setup() {
   delay(1000);
   Serial.println("\n--- S3-Box Booting ---");
 
-  pinMode(redLedPin, OUTPUT);
-  pinMode(blueLedPin, OUTPUT);
-  digitalWrite(redLedPin, HIGH);
+  // Removed LED pins (2 and 5) because they conflict with Audio MCLK and Display CS
 
   Serial.println("Init Backlight...");
   pinMode(45, OUTPUT);
@@ -195,6 +236,7 @@ void setup() {
   loadAPIKey();
 
   displayPrint("Welcome to Gemini Bot!");
+  drawFace("Neutral");
   displayPrint("Please enter your name:");
   
   while (!Serial.available());
@@ -315,7 +357,10 @@ void loop() {
         String payload;
         serializeJson(requestDoc, payload);
 
-        digitalWrite(blueLedPin, HIGH);
+        if (userQuery.length() > 0) {
+          drawFace("Thinking");
+          displayPrint(userName + ": \"" + userQuery + "\""); 
+        }
 
         int httpResponseCode = http.POST(payload);
 
@@ -334,6 +379,8 @@ void loop() {
             displayPrint("Gemini: ");
             displayPrint(String(text));
             
+            drawFace("Speaking");
+            
              // Simple TTS (Google Translate unofficial API) - truncated to 100 chars for safety
             String ttsText = String(text);
             if (ttsText.length() > 100) ttsText = ttsText.substring(0, 100);
@@ -348,8 +395,6 @@ void loop() {
           displayPrint("Request error: " + String(httpResponseCode));
           displayPrint("HTTP error: " + String(http.errorToString(httpResponseCode).c_str()));
         }
-
-        digitalWrite(blueLedPin, LOW);
 
         http.end();
       } else {
