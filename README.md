@@ -1,11 +1,28 @@
-# Gemini-esp32
-Code to use the ESP32 to Interact with Google Gemini but "smaller" the idea is to have an AI on as many platforms as possible without having the worry of not having enough resources to run it locally (in the future perhaps use the capabilities of the ESP32 together with Gemini to create more complex projects)
+# Gemini ESP32-S3 Box Companion 🤖✨
+
+An embedded AI voice companion that brings Google Gemini 2.0 to the ESP32-S3 Box. Designed as an age-aware companion for children, it features a custom display interface and personalized interactions.
 
 
-You need to place here your Gemini Api Key (Is free to get using this link: https://ai.google.dev/gemini-api/docs/api-key You only need a Gmail account)
+## Features
 
----->  const char* apiKey = "Your Api Key Here";  <----
+- **Age-Aware Intelligence**: Uses Gemini 2.0 Flash with a custom master prompt tailored for children (4-14 years).
+- **S3-Box Integration**: Full support for the built-in 2.4" LCD display (TFT_eSPI) and backlight.
+- **Personalized Setup**: Ask for name and age on boot to customize the AI persona.
+- **WiFi Management**: Scan for networks and save Access Points via Serial.
 
-Regarding to the apiKey is not needed to add in the code if you are planning to use this firmware with the Flipper Zero app
+## Quick Start
 
-~~Flipper Zero app (Gemini IA.js)~~ Moved to Gemini-Flipper repo (https://github.com/d4rks1d33/Gemini-Flipper)
+1. **Hardware**: ESP32-S3 Box (or compatible ESP32-S3 with ILI9342 display).
+2. **Setup API Key**: Get a free key from [Google AI Studio](https://ai.google.dev/gemini-api/docs/api-key) and place it in the `apiKey` variable in `esp32_GeminiBot.ino`.
+3. **Libraries Required**:
+    - `ArduinoJson` (v7+)
+    - `TFT_eSPI` (Configure `User_Setup.h` for S3-Box)
+4. **Flash**: Use the provided [Flashing Guide](FLASHING_GUIDE.md) for detailed steps.
+
+## Project Structure
+- `/esp32_GeminiBot`: Core Arduino firmware.
+- `/prompts`: Master AI instruction sets and mode profiles.
+- `FLASHING_GUIDE.md`: Step-by-step setup for beginners.
+
+## License
+MIT License.

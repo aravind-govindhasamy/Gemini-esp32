@@ -1,0 +1,18 @@
+# Arduino build artifacts
+build/
+*.bin
+*.elf
+*.map
+
+# Sensitive data
+api.txt
+esp32_GeminiBot/SavedAPs.txt
+
+# External / Local Library copies
+arduino_user/
+esp32_GeminiBot/libraries/
+esp32_GeminiBot/src/
+
+# OS specific files
+.DS_Store
+Thumbs.db
