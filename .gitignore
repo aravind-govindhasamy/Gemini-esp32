@@ -1,18 +1,26 @@
-# Arduino build artifacts
+# Arduino/ESP32 ignores
 build/
+bin/
 *.bin
 *.elf
 *.map
+*.hex
+*.exe
 
-# Sensitive data
-api.txt
-esp32_GeminiBot/SavedAPs.txt
+# Arduino IDE folders
+.arduinoIDE/
 
-# External / Local Library copies
-arduino_user/
-esp32_GeminiBot/libraries/
-esp32_GeminiBot/src/
+# VS Code / PlatformIO / ESP-IDF
+.vscode/
+.pio/
+.espressif/
+sdkconfig
+sdkconfig.old
 
-# OS specific files
+# OS generated files
 .DS_Store
 Thumbs.db
+*.tmp
+*.log
+/arduino_user/libraries
+/esp32_GeminiBot/libraries

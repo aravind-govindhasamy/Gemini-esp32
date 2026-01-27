@@ -1,0 +1,10 @@
+# SafeNest Buddy local ignores
+build/
+bin/
+*.bin
+*.elf
+*.map
+*.hex
+
+# Libraries are already in the root, but if any are local:
+libraries/
