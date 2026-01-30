@@ -194,20 +194,6 @@ dependencies:
       registry_url: https://components.espressif.com
       type: service
     version: 1.4.0
-  espressif/openai:
-    component_hash: 1d0f312df5ee8fa94f425f457d76792b6785bdc9f86f42070e160649fe86d5e4
-    dependencies:
-    - name: espressif/cmake_utilities
-      registry_url: https://components.espressif.com
-      require: private
-      version: 0.*
-    - name: idf
-      require: private
-      version: '>=4.4.0'
-    source:
-      registry_url: https://components.espressif.com/
-      type: service
-    version: 1.0.2
   idf:
     source:
       type: idf
@@ -225,8 +211,7 @@ direct_dependencies:
 - espressif/button
 - espressif/esp-box-3
 - espressif/esp-sr
-- espressif/openai
 - lvgl/lvgl
-manifest_hash: a98fe0a4c248b19910448b5d4fd3059ff34a65768b55eb25046e4b28b562c2d2
+manifest_hash: 2c2430ef8b2e61b5378b5b03f1f8ba8a7ea8f2c06c5e026f76f35076568e738e
 target: esp32s3
 version: 2.0.0

@@ -36,6 +36,10 @@ esp_err_t bsp_board_init(void)
     esp_codec_dev_open(play_handle, &fs);
     esp_codec_dev_open(record_handle, &fs);
     
+    // Boost microphone sensitivity (for ES7210)
+    esp_codec_dev_set_in_gain(record_handle, 30.0);
+    esp_codec_dev_set_in_mute(record_handle, false);
+    
     return ESP_OK;
 }
 

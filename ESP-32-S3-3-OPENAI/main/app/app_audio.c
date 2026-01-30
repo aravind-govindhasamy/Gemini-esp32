@@ -25,7 +25,10 @@
 #include "file_iterator.h"
 #include "app_ui_ctrl.h"
 #include "app_wifi.h"
+#include "settings.h"
+#include "main.h"
 
+#define LISTEN_SPEAK_PANEL_DELAY_MS     2000
 static const char *TAG = "app_audio";
 
 #if !CONFIG_BSP_BOARD_ESP32_S3_BOX_Lite
@@ -39,7 +42,6 @@ uint8_t *audio_rx_buffer = NULL;
 audio_play_finish_cb_t audio_play_finish_cb = NULL;
 
 extern sr_data_t *g_sr_data;
-extern esp_err_t start_openai(uint8_t *audio, int audio_len);
 extern int Cache_WriteBack_Addr(uint32_t addr, uint32_t size);
 
 /* main function */
@@ -312,32 +314,37 @@ void sr_handler_task(void *pvParam)
         if (ESP_MN_STATE_TIMEOUT == result.state) {
             ESP_LOGI(TAG, "ESP_MN_STATE_TIMEOUT");
             audio_record_stop();
-            FILE *fp = fopen("/spiffs/waitPlease.mp3", "r");
-            if (fp) {
-                audio_player_play(fp);
-            }
-            if (WIFI_STATUS_CONNECTED_OK == wifi_connected_already()) {
-                start_openai((uint8_t *)record_audio_buffer, record_total_len);
-            }
+            // In pure-offline mode, timeout just goes back to sleep
+            ui_ctrl_show_panel(UI_CTRL_PANEL_SLEEP, LISTEN_SPEAK_PANEL_DELAY_MS);
             continue;
         }
 
         if (WAKENET_DETECTED == result.wakenet_mode) {
             audio_record_start();
-
-            // UI show listen
             ui_ctrl_guide_jump();
             ui_ctrl_show_panel(UI_CTRL_PANEL_LISTEN, 0);
-
             audio_play_task("/spiffs/echo_en_wake.wav");
             continue;
         }
 
         if (ESP_MN_STATE_DETECTED & result.state) {
-            ESP_LOGI(TAG, "STOP:%d", result.command_id);
+            ESP_LOGI(TAG, "Command Detected:%d", result.command_id);
             audio_record_stop();
             audio_play_task("/spiffs/echo_en_ok.wav");
-            //How to stop the transmission, when start_openai begins.
+            
+            const char *prompt = NULL;
+            switch (result.command_id) {
+                case 1: prompt = "Tell me a joke"; break;
+                case 2: prompt = "Sing a song"; break;
+                case 3: prompt = "What is the alphabet"; break;
+                case 4: prompt = "Who are you"; break;
+                case 5: prompt = "I love you"; break;
+                default: prompt = "Hi there"; break;
+            }
+            
+            if (WIFI_STATUS_CONNECTED_OK == wifi_connected_already()) {
+                gemini_speech_bot_trigger(prompt);
+            }
             continue;
         }
     }

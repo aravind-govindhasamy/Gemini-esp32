@@ -132,7 +132,7 @@ void ui_ScreenSettings_screen_init(void)
     lv_obj_set_style_text_font(ui_LabelSettingsRegion, &ui_font_PingFangEN16, LV_PART_MAIN | LV_STATE_DEFAULT);
 
     ui_DropdownSettingsRegion = lv_dropdown_create(ui_PanelSettingsRegion);
-    lv_dropdown_set_options(ui_DropdownSettingsRegion, "Espressif\nOpenAI");
+    lv_dropdown_set_options(ui_DropdownSettingsRegion, "Espressif\nGemini");
     lv_obj_set_width(ui_DropdownSettingsRegion, lv_pct(33));
     lv_obj_set_height(ui_DropdownSettingsRegion, lv_pct(100));
     lv_obj_set_x(ui_DropdownSettingsRegion, 2);

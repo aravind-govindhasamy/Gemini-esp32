@@ -29,6 +29,7 @@
 #include "bsp_board.h"
 #include "app_audio.h"
 #include "app_wifi.h"
+#include <math.h>
 
 static const char *TAG = "app_sr";
 
@@ -73,12 +74,21 @@ static void audio_feed_task(void *arg)
             audio_buffer[i * 3 + 0] = audio_buffer[i * 2 + 0];
         }
 
-        /* Checking if WIFI is connected */
-        if (WIFI_STATUS_CONNECTED_OK == wifi_connected_already()) {
-
-            /* Feed samples of an audio stream to the AFE_SR */
-            afe_handle->feed(afe_data, audio_buffer);
+        /* Feed samples of an audio stream to the AFE_SR */
+        afe_handle->feed(afe_data, audio_buffer);
+        
+        // Diagnostic: Check if we have any signal (RMS)
+        static int rms_count = 0;
+        if (rms_count++ % 100 == 0) {
+            float rms = 0;
+            for (int i=0; i<audio_chunksize; i++) {
+                float sample = (float)audio_buffer[i*3];
+                rms += sample * sample;
+            }
+            rms = sqrtf(rms / audio_chunksize);
+            ESP_LOGI(TAG, "Audio In RMS: %.2f (Mic1: %d)", rms, audio_buffer[0]);
         }
+
         audio_record_save(audio_buffer, audio_chunksize);
     }
 }
@@ -127,6 +137,47 @@ static void audio_detect_task(void *arg)
         }
 
         if (true == detect_flag) {
+            if (g_sr_data->multinet == NULL || g_sr_data->model_data == NULL) {
+                ESP_LOGE(TAG, "Multinet not initialized!");
+                detect_flag = false;
+                g_sr_data->afe_handle->enable_wakenet(afe_data);
+                continue;
+            }
+            esp_mn_state_t mn_state = g_sr_data->multinet->detect(g_sr_data->model_data, res->data);
+
+            if (ESP_MN_STATE_DETECTED == mn_state) {
+                esp_mn_results_t *mn_res = g_sr_data->multinet->get_results(g_sr_data->model_data);
+                for (int i = 0; i < mn_res->num; i++) {
+                    ESP_LOGI(TAG, "ID: %d, Phrase ID: %d, Prob: %f", mn_res->command_id[i], mn_res->phrase_id[i], mn_res->prob[i]);
+                }
+
+                sr_result_t result = {
+                    .wakenet_mode = WAKENET_NO_DETECT,
+                    .state = mn_state,
+                    .command_id = mn_res->command_id[0],
+                };
+                xQueueSend(g_sr_data->result_que, &result, 0);
+                g_sr_data->afe_handle->enable_wakenet(afe_data);
+                detect_flag = false;
+                continue;
+            } else if (ESP_MN_STATE_TIMEOUT == mn_state) {
+                ESP_LOGW(TAG, "Multinet internal timeout");
+                sr_result_t result = {
+                    .wakenet_mode = WAKENET_NO_DETECT,
+                    .state = ESP_MN_STATE_TIMEOUT,
+                    .command_id = 0,
+                };
+                xQueueSend(g_sr_data->result_que, &result, 0);
+                g_sr_data->afe_handle->enable_wakenet(afe_data);
+                detect_flag = false;
+                continue;
+            }
+
+            // Periodic log to see if it's actually detecting
+            static int detect_log_count = 0;
+            if (detect_log_count++ % 100 == 0) {
+                ESP_LOGI(TAG, "MN Detecting... (VAD: %d)", res->vad_state);
+            }
 
             if (local_state != res->vad_state) {
                 local_state = res->vad_state;
@@ -202,10 +253,53 @@ esp_err_t app_sr_start(bool record_en)
     ret = app_sr_set_language(SR_LANG_EN);
     ESP_GOTO_ON_FALSE(ESP_OK == ret, ESP_FAIL, err, TAG,  "Failed to set language");
 
+    // Add local commands for kid-friendly interaction (esp-sr 1.3.3 API)
+    char *mn_name = esp_srmodel_filter(models, ESP_MN_PREFIX, ESP_MN_ENGLISH);
+    ESP_LOGI(TAG, "Load multinet: %s", mn_name);
+    
+    esp_mn_iface_t *multinet = esp_mn_handle_from_name(mn_name);
+    if (multinet == NULL) {
+        ESP_LOGE(TAG, "Failed to get multinet interface for %s", mn_name);
+        goto err;
+    }
+
+    ESP_LOGI(TAG, "Memory Before Multinet Init - Internal: %d, SPIRAM: %d", 
+             heap_caps_get_free_size(MALLOC_CAP_INTERNAL), 
+             heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
+             
+    model_iface_data_t *model_data = multinet->create(mn_name, 6000); // 6s timeout
+    if (model_data == NULL) {
+        ESP_LOGE(TAG, "Failed to create multinet model data (Out of memory?)");
+        goto err;
+    }
+
+    ESP_LOGI(TAG, "Memory After Multinet Init - Internal: %d, SPIRAM: %d", 
+             heap_caps_get_free_size(MALLOC_CAP_INTERNAL), 
+             heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
+    
+    esp_err_t mn_ret = esp_mn_commands_alloc(multinet, model_data);
+    if (mn_ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to allocate mn commands: %d", mn_ret);
+        goto err;
+    }
+
+    ESP_LOGI(TAG, "Adding commands to Multinet 6...");
+    esp_mn_commands_add(1, "TELL ME A JOKE");
+    esp_mn_commands_add(2, "SING A SONG");
+    esp_mn_commands_add(3, "WHAT IS THE ALPHABET");
+    esp_mn_commands_add(4, "WHO ARE YOU");
+    esp_mn_commands_add(5, "I LOVE YOU");
+    
+    esp_mn_commands_print();
+    esp_mn_commands_update();
+
+    g_sr_data->multinet = multinet;
+    g_sr_data->model_data = model_data;
+
     ret_val = xTaskCreatePinnedToCore(&audio_feed_task, "Feed Task", 8 * 1024, (void *)afe_data, 5, &g_sr_data->feed_task, 0);
     ESP_GOTO_ON_FALSE(pdPASS == ret_val, ESP_FAIL, err, TAG,  "Failed create audio feed task");
 
-    ret_val = xTaskCreatePinnedToCore(&audio_detect_task, "Detect Task", 10 * 1024, (void *)afe_data, 5, &g_sr_data->detect_task, 1);
+    ret_val = xTaskCreatePinnedToCore(&audio_detect_task, "Detect Task", 12 * 1024, (void *)afe_data, 5, &g_sr_data->detect_task, 1);
     ESP_GOTO_ON_FALSE(pdPASS == ret_val, ESP_FAIL, err, TAG,  "Failed create audio detect task");
 
     ret_val = xTaskCreatePinnedToCore(&sr_handler_task, "SR Handler Task", 8 * 1024, NULL, 5, &g_sr_data->handle_task, 0);

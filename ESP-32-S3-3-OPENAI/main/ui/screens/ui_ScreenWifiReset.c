@@ -64,7 +64,7 @@ void ui_ScreenWifiReset_screen_init(void)
     lv_obj_set_y(ui_LabelWifiResetContent, lv_pct(20));
     lv_obj_set_align(ui_LabelWifiResetContent, LV_ALIGN_TOP_MID);
     lv_label_set_text(ui_LabelWifiResetContent,
-                      "1. Press the \"OK\" button to enter factory reset mode.\n2. Connect the box to your PC and add the OpenAI key and Wi-Fi credentials.\n3. Follow the on-screen prompts to complete the setup process.");
+                      "1. Press the \"OK\" button to enter factory reset mode.\n2. Connect the box to your PC and add the Gemini key and Wi-Fi credentials.\n3. Follow the on-screen prompts to complete the setup process.");
     lv_obj_set_style_text_color(ui_LabelWifiResetContent, lv_color_hex(0xFFFFFF), LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_opa(ui_LabelWifiResetContent, 255, LV_PART_MAIN | LV_STATE_DEFAULT);
     lv_obj_set_style_text_letter_space(ui_LabelWifiResetContent, 0, LV_PART_MAIN | LV_STATE_DEFAULT);

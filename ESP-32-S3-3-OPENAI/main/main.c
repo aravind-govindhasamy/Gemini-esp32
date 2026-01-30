@@ -28,50 +28,66 @@
 #define SCROLL_START_DELAY_S            (1.5)
 #define LISTEN_SPEAK_PANEL_DELAY_MS     2000
 #define SERVER_ERROR                    "server_error"
-#define INVALID_REQUEST_ERROR           "invalid_request_error"
 #define SORRY_CANNOT_UNDERSTAND         "Sorry, I can't understand."
-#define API_KEY_NOT_VALID               "API Key is not valid"
 
-static char *TAG = "app_main";
+#include "main.h"
+
+static const char *TAG = "app_main";
 static sys_param_t *sys_param = NULL;
 
-/* program flow. This function is called in app_audio.c */
-esp_err_t start_openai(uint8_t *audio, int audio_len)
+/* 
+ * Gemini Voice Bot Interaction Loop
+ */
+esp_err_t gemini_speech_bot_trigger(const char *prompt)
 {
     esp_err_t ret = ESP_OK;
-    char *response = NULL;
+    gemini_response_t *response = NULL;
 
     ui_ctrl_show_panel(UI_CTRL_PANEL_GET, 0);
 
-    // Gemini Multimodal Query (Transcription + Chat)
+    ESP_LOGI(TAG, "Querying Gemini with prompt: %s", prompt);
     gemini_init(sys_param->gemini_key);
-    response = gemini_audio_query(audio, audio_len);
+    response = gemini_text_query(prompt);
 
-    if (NULL == response) {
+    if (NULL == response || NULL == response->text) {
         ret = ESP_ERR_INVALID_RESPONSE;
         ui_ctrl_label_show_text(UI_CTRL_LABEL_LISTEN_SPEAK, SORRY_CANNOT_UNDERSTAND);
         ui_ctrl_show_panel(UI_CTRL_PANEL_SLEEP, LISTEN_SPEAK_PANEL_DELAY_MS);
-        ESP_LOGE(TAG, "[gemini_audio_query]: invalid response");
+        ESP_LOGE(TAG, "[gemini_text_query]: invalid response");
         goto err;
     }
 
     // UI display success
-    ui_ctrl_label_show_text(UI_CTRL_LABEL_REPLY_QUESTION, "Voice Query"); // Gemini doesn't return separate text transcription in this simple flow
-    ui_ctrl_label_show_text(UI_CTRL_LABEL_LISTEN_SPEAK, response);
-    ui_ctrl_label_show_text(UI_CTRL_LABEL_REPLY_CONTENT, response);
+    ui_ctrl_label_show_text(UI_CTRL_LABEL_REPLY_QUESTION, prompt); 
+    ui_ctrl_label_show_text(UI_CTRL_LABEL_LISTEN_SPEAK, response->text);
+    ui_ctrl_label_show_text(UI_CTRL_LABEL_REPLY_CONTENT, response->text);
     ui_ctrl_show_panel(UI_CTRL_PANEL_REPLY, 0);
 
-    // TODO: Implement Google TTS or Gemini Speech if desired. 
-    // For now, only text response is shown to fulfill "everything from gemini".
+    // Play Voice Output if available
+    if (response->audio && response->audio_len > 0) {
+        FILE *fp = fopen("/spiffs/response.wav", "wb");
+        if (fp) {
+            fwrite(response->audio, 1, response->audio_len, fp);
+            fclose(fp);
+            
+            fp = fopen("/spiffs/response.wav", "rb");
+            if (fp) {
+                ESP_LOGI(TAG, "Playing Gemini Voice Output (%zu bytes)", response->audio_len);
+                audio_player_play(fp);
+                while (audio_player_get_state() == AUDIO_PLAYER_STATE_PLAYING) {
+                    vTaskDelay(pdMS_TO_TICKS(100));
+                }
+            }
+        }
+    }
     
-    vTaskDelay(pdMS_TO_TICKS(SCROLL_START_DELAY_S * 1000));
+    vTaskDelay(pdMS_TO_TICKS(2000));
     ui_ctrl_reply_set_audio_start_flag(true);
     ui_ctrl_reply_set_audio_end_flag(true);
+    ui_ctrl_show_panel(UI_CTRL_PANEL_SLEEP, 1000);
 
 err:
-    if (response) {
-        free(response);
-    }
+    if (response) gemini_response_free(response);
     return ret;
 }
 
@@ -116,14 +132,9 @@ void app_main()
     audio_register_play_finish_cb(audio_play_finish_cb);
 
     while (true) {
-
-        ESP_LOGD(TAG, "\tDescription\tInternal\tSPIRAM");
-        ESP_LOGD(TAG, "Current Free Memory\t%d\t\t%d",
+        ESP_LOGI(TAG, "Memory - Internal: %d, SPIRAM: %d",
                  heap_caps_get_free_size(MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL),
                  heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
-        ESP_LOGD(TAG, "Min. Ever Free Size\t%d\t\t%d",
-                 heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL),
-                 heap_caps_get_minimum_free_size(MALLOC_CAP_SPIRAM));
         vTaskDelay(pdMS_TO_TICKS(5 * 1000));
     }
 }

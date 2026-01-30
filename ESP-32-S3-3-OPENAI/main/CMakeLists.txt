@@ -24,6 +24,7 @@ idf_component_register(
         esp-box-3
         nvs_flash
         esp_http_client
+        mbedtls
         esp_wifi
         esp_event
         lwip
