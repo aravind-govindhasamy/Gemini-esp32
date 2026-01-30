@@ -27,6 +27,12 @@ esp_err_t bsp_board_init(void)
         return ESP_FAIL;
     }
 
+    // Boost microphone sensitivity (for ES7210)
+    // Set BEFORE opening, and use a higher gain (42dB)
+    int ret1 = esp_codec_dev_set_in_gain(record_handle, 42.0);
+    int ret2 = esp_codec_dev_set_in_mute(record_handle, false);
+    ESP_LOGI(TAG, "ES7210 Gain Set: %d, Mute Set: %d", ret1, ret2);
+
     // Open handles with default settings
     esp_codec_dev_sample_info_t fs = {
         .sample_rate = 16000,
@@ -35,10 +41,6 @@ esp_err_t bsp_board_init(void)
     };
     esp_codec_dev_open(play_handle, &fs);
     esp_codec_dev_open(record_handle, &fs);
-    
-    // Boost microphone sensitivity (for ES7210)
-    esp_codec_dev_set_in_gain(record_handle, 30.0);
-    esp_codec_dev_set_in_mute(record_handle, false);
     
     return ESP_OK;
 }

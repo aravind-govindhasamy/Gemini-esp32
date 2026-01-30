@@ -79,7 +79,7 @@ static void audio_feed_task(void *arg)
         
         // Diagnostic: Check if we have any signal (RMS)
         static int rms_count = 0;
-        if (rms_count++ % 100 == 0) {
+        if (rms_count++ % 30 == 0) {
             float rms = 0;
             for (int i=0; i<audio_chunksize; i++) {
                 float sample = (float)audio_buffer[i*3];
