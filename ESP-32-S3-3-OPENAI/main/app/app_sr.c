@@ -25,6 +25,7 @@
 #include "esp_afe_sr_iface.h"
 #include "esp_mn_iface.h"
 #include "model_path.h"
+#include "bsp/esp-bsp.h"
 #include "bsp_board.h"
 #include "app_audio.h"
 #include "app_wifi.h"

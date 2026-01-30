@@ -1,0 +1,71 @@
+dependencies:
+  espressif/cmake_utilities:
+    component_hash: 351350613ceafba240b761b4ea991e0f231ac7a9f59a9ee901f751bddc0bb18f
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=4.1'
+    source:
+      registry_url: https://components.espressif.com
+      type: service
+    version: 0.5.3
+  espressif/esp_tinyuf2:
+    component_hash: c2ccb99e41f762ab5cdfd2503ecbf3b03e9b59e2526c0aa6e23d8efc93a5e0a9
+    dependencies:
+    - name: espressif/cmake_utilities
+      registry_url: https://components.espressif.com
+      require: private
+      version: 0.*
+    - name: idf
+      require: private
+      version: '>=4.4'
+    - name: leeebo/esp-inih
+      registry_url: https://components.espressif.com
+      require: private
+      version: 0.*
+    - name: leeebo/tinyusb_src
+      registry_url: https://components.espressif.com
+      require: private
+      version: ==0.16.0~6
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    targets:
+    - esp32s2
+    - esp32s3
+    - esp32p4
+    version: 1.1.1
+  idf:
+    source:
+      type: idf
+    version: 5.1.6
+  leeebo/esp-inih:
+    component_hash: a2ecd9643d4cf7b3592645579d6ecf0f5c4f07f8ca8f9bafeb1d0f89fd005f38
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=4.4'
+    source:
+      registry_url: https://components.espressif.com
+      type: service
+    version: 0.0.2
+  leeebo/tinyusb_src:
+    component_hash: f8a386b696474c2b20482b662319200e4a2ce9cae8fa3ae7830d3929f03780c8
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=4.4'
+    source:
+      registry_url: https://components.espressif.com
+      type: service
+    targets:
+    - esp32s2
+    - esp32s3
+    - esp32p4
+    version: 0.16.0~6
+direct_dependencies:
+- espressif/esp_tinyuf2
+- idf
+manifest_hash: d75da3190048ebacc24cbe8e684940c59c49721a0784ce0d417f7d555a55f764
+target: esp32s3
+version: 2.0.0
