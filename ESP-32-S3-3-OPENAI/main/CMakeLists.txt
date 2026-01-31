@@ -43,7 +43,9 @@ idf_component_register(
         app_update
         spiffs
         vfs
+        vfs
         esp_codec_dev
+        jmattsson__picotts
 )
 
 set(MV_UF2_BIN_EXE ${COMPONENT_PATH}/generateuf2.py)
