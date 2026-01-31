@@ -144,10 +144,10 @@ void audio_record_save(int16_t *audio_buffer, int audio_chunksize)
 {
 #if DEBUG_SAVE_PCM
     if (record_flag) {
-        // Feed live STT stream if active
-        wit_stt_stream_feed((uint8_t*)audio_buffer, audio_chunksize * sizeof(int16_t));
-
         uint16_t *record_buff = (uint16_t *)(record_audio_buffer + sizeof(wav_header_t));
+        uint16_t *feed_start = record_buff + record_total_len;
+        size_t start_len = record_total_len;
+
         record_buff += record_total_len;
         for (int i = 0; i < (audio_chunksize - 1); i++) {
             if (record_total_len < (MAX_FILE_SIZE - sizeof(wav_header_t)) / 2) {
@@ -160,6 +160,12 @@ void audio_record_save(int16_t *audio_buffer, int audio_chunksize)
                 record_total_len += 2;
 #endif
             }
+        }
+        
+        // Feed the NEWLY added clean PCM data to STT
+        size_t added_samples = record_total_len - start_len;
+        if (added_samples > 0) {
+            wit_stt_stream_feed((uint8_t*)feed_start, added_samples * sizeof(int16_t));
         }
     }
 #endif

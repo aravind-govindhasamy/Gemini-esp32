@@ -133,7 +133,18 @@ esp_err_t gemini_audio_bot_trigger(uint8_t *audio, size_t len, wit_nlu_result_t 
     ui_ctrl_show_panel(UI_CTRL_PANEL_GET, 0);
     
     // Step 1: Transcribe & Understand (only if not already done by stream)
-    if (NULL == nlu_res) {
+    // If we have a result from the stream but it wasn't marked "is_final",
+    // we prefer to re-transcribe the full local recording for accuracy.
+    if (NULL == nlu_res || !nlu_res->is_final) {
+        if (nlu_res) {
+            ESP_LOGI(TAG, "Streaming result incomplete, falling back to full cloud STT");
+            // Note: we don't free nlu_res yet if it came from pre_nlu_res, 
+            // but in that case trigger() wasn't responsible for it. 
+            // Actually, we should probably free it if we're replacing it.
+            if (pre_nlu_res) wit_nlu_result_free(pre_nlu_res);
+            nlu_res = NULL;
+            pre_nlu_res = NULL; // Mark that we're now owning the new result
+        }
         ui_ctrl_label_show_text(UI_CTRL_LABEL_LISTEN_SPEAK, "Transcribing...");
         nlu_res = wit_stt_query(audio, len);
         if (NULL == nlu_res || NULL == nlu_res->text) {
@@ -149,7 +160,6 @@ esp_err_t gemini_audio_bot_trigger(uint8_t *audio, size_t len, wit_nlu_result_t 
     if (nlu_res->intent) {
         ESP_LOGI(TAG, "Intent: %s (conf: %.2f)", nlu_res->intent, nlu_res->intent_conf);
     }
-    ESP_LOGI(TAG, "Recognized: %s", nlu_res->text);
     ui_ctrl_label_show_text(UI_CTRL_LABEL_LISTEN_SPEAK, nlu_res->text);
     ui_ctrl_label_show_text(UI_CTRL_LABEL_REPLY_QUESTION, nlu_res->text);
 

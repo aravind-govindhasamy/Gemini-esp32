@@ -7,6 +7,7 @@ typedef struct wit_nlu_result {
     char *text;
     char *intent;
     float intent_conf;
+    bool is_final;
     // Add entities/traits as needed in the future
 } wit_nlu_result_t;
 

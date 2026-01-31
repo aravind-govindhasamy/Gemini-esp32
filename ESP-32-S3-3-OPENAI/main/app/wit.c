@@ -1,4 +1,7 @@
 #include <string.h>
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "freertos/ringbuf.h"
 #include "esp_log.h"
 #include "esp_http_client.h"
 #include "esp_crt_bundle.h"
@@ -6,6 +9,7 @@
 #include "wit.h"
 
 #define KEY_SIZE 165
+#define STT_RING_BUFFER_SIZE (32 * 1024)
 
 typedef struct {
     char *buf;
@@ -16,8 +20,11 @@ static const char *TAG = "wit_client";
 static char g_token[KEY_SIZE] = {0};
 static esp_http_client_handle_t g_stream_client = NULL;
 static bool g_stream_ready = false;
+static bool g_stream_active = false;
 static wit_stt_callback_t g_stt_cb = NULL;
 static response_collector_t g_stream_collector = {0};
+static RingbufHandle_t g_stream_rb = NULL;
+static TaskHandle_t g_stream_task_handle = NULL;
 
 void wit_init(const char *token) {
     if (token && strlen(token) > 0) {
@@ -67,16 +74,62 @@ static esp_err_t _http_event_handler(esp_http_client_event_t *evt) {
     return ESP_OK;
 }
 
+static wit_nlu_result_t* _parse_wit_response(const char *buf) {
+    if (!buf) return NULL;
+    wit_nlu_result_t *res = NULL;
+    char *ptr = (char*)buf;
+    
+    // Wit.ai sends multiple JSON objects back-to-back.
+    // We iterate through them and keep the most "final" or latest one.
+    while (ptr) {
+        char *next_brace = strstr(ptr, "{");
+        if (!next_brace) break;
+        
+        cJSON *root = cJSON_Parse(next_brace);
+        if (root) {
+            cJSON *type = cJSON_GetObjectItem(root, "type");
+            cJSON *text = cJSON_GetObjectItem(root, "text");
+            bool is_final_msg = (type && strstr(type->valuestring, "FINAL"));
+            
+            // We prioritize FINAL_UNDERSTANDING or FINAL_TRANSCRIPTION.
+            // If we already have a final result, we only replace it if this one is also final or better.
+            if (!res || is_final_msg || !res->is_final) {
+                if (!res) res = (wit_nlu_result_t*)calloc(1, sizeof(wit_nlu_result_t));
+                
+                if (cJSON_IsString(text)) {
+                    if (res->text) free(res->text);
+                    res->text = strdup(text->valuestring);
+                }
+                
+                if (type && strstr(type->valuestring, "FINAL")) res->is_final = true;
+
+                cJSON *intents = cJSON_GetObjectItem(root, "intents");
+                if (cJSON_IsArray(intents) && cJSON_GetArraySize(intents) > 0) {
+                    cJSON *intent_obj = cJSON_GetArrayItem(intents, 0);
+                    cJSON *name = cJSON_GetObjectItem(intent_obj, "name");
+                    cJSON *conf = cJSON_GetObjectItem(intent_obj, "confidence");
+                    if (cJSON_IsString(name)) {
+                        if (res->intent) free(res->intent);
+                        res->intent = strdup(name->valuestring);
+                        res->intent_conf = (float)conf->valuedouble;
+                    }
+                }
+            }
+            cJSON_Delete(root);
+        }
+        ptr = next_brace + 1;
+    }
+    return res;
+}
+
 wit_nlu_result_t* wit_stt_query(uint8_t *pcm_audio, size_t len) {
     if (strlen(g_token) == 0 || !pcm_audio) {
         ESP_LOGE(TAG, "Wit token not set or no audio");
         return NULL;
     }
-
     ESP_LOGI(TAG, "Querying Wit.ai STT (%zu bytes)", len);
-
-    response_collector_t collector = { .buf = NULL, .size = 0 };
-
+    
+    response_collector_t collector = {0};
     esp_http_client_config_t config = {
         .url = "https://api.wit.ai/speech?v=20260131",
         .method = HTTP_METHOD_POST,
@@ -93,46 +146,24 @@ wit_nlu_result_t* wit_stt_query(uint8_t *pcm_audio, size_t len) {
     snprintf(auth_header, sizeof(auth_header), "Bearer %s", g_token);
     esp_http_client_set_header(client, "Authorization", auth_header);
     
-    // Set post field for raw audio
-    esp_http_client_set_post_field(client, (const char*)pcm_audio, (int)len);
-
+    esp_http_client_set_post_field(client, (const char *)pcm_audio, len);
+    
     ESP_LOGI(TAG, "Sending STT request...");
-
-    wit_nlu_result_t *res = NULL;
     esp_err_t err = esp_http_client_perform(client);
+    
+    wit_nlu_result_t *res = NULL;
     if (err == ESP_OK) {
         int status = esp_http_client_get_status_code(client);
         if (status == 200 && collector.buf) {
             ESP_LOGI(TAG, "Response JSON: %s", collector.buf);
-            cJSON *root = cJSON_Parse(collector.buf);
-            if (root) {
-                res = (wit_nlu_result_t*)calloc(1, sizeof(wit_nlu_result_t));
-                
-                cJSON *text = cJSON_GetObjectItem(root, "text");
-                if (cJSON_IsString(text)) {
-                    res->text = strdup(text->valuestring);
-                }
-                
-                cJSON *intents = cJSON_GetObjectItem(root, "intents");
-                if (cJSON_IsArray(intents) && cJSON_GetArraySize(intents) > 0) {
-                    cJSON *intent_obj = cJSON_GetArrayItem(intents, 0);
-                    cJSON *name = cJSON_GetObjectItem(intent_obj, "name");
-                    cJSON *conf = cJSON_GetObjectItem(intent_obj, "confidence");
-                    if (cJSON_IsString(name)) {
-                        res->intent = strdup(name->valuestring);
-                        res->intent_conf = (float)conf->valuedouble;
-                        ESP_LOGI(TAG, "Detected Intent: %s (conf: %.2f)", res->intent, res->intent_conf);
-                    }
-                }
-                cJSON_Delete(root);
-            }
+            res = _parse_wit_response(collector.buf);
         } else {
             ESP_LOGE(TAG, "Wit STT failed with HTTP status %d, size %d", status, collector.size);
         }
     } else {
         ESP_LOGE(TAG, "Wit STT HTTP perform failed: %s", esp_err_to_name(err));
     }
-    
+
     if (collector.buf) free(collector.buf);
     esp_http_client_cleanup(client);
     return res;
@@ -146,21 +177,19 @@ void wit_nlu_result_free(wit_nlu_result_t *res) {
     }
 }
 
-esp_err_t wit_stt_stream_start(wit_stt_callback_t cb) {
-    if (g_stream_client) return ESP_ERR_INVALID_STATE;
-    g_stt_cb = cb;
-    g_stream_ready = false;
-    memset(&g_stream_collector, 0, sizeof(response_collector_t));
-
+static void _stt_stream_task(void *pv) {
+    ESP_LOGI(TAG, "STT Background Task Started");
+    
     esp_http_client_config_t config = {
         .url = "https://api.wit.ai/speech?v=20260131",
         .method = HTTP_METHOD_POST,
         .crt_bundle_attach = esp_crt_bundle_attach,
-        .timeout_ms = 30000,
-        .buffer_size = 4096, // Smaller buffer for more frequent chunks
+        .timeout_ms = 60000,
+        .buffer_size = 4096,
         .event_handler = _http_event_handler,
         .user_data = &g_stream_collector,
     };
+    
     g_stream_client = esp_http_client_init(&config);
     esp_http_client_set_header(g_stream_client, "Content-Type", "audio/raw;encoding=signed-integer;bits=16;rate=16000;endian=little");
     esp_http_client_set_header(g_stream_client, "Transfer-Encoding", "chunked");
@@ -169,97 +198,118 @@ esp_err_t wit_stt_stream_start(wit_stt_callback_t cb) {
     snprintf(auth_header, sizeof(auth_header), "Bearer %s", g_token);
     esp_http_client_set_header(g_stream_client, "Authorization", auth_header);
 
-    esp_err_t err = esp_http_client_open(g_stream_client, -1); // -1 for chunked
+    esp_err_t err = esp_http_client_open(g_stream_client, -1);
     if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to open stream: %s", esp_err_to_name(err));
+        ESP_LOGE(TAG, "Failed to open STT stream: %s", esp_err_to_name(err));
+        g_stream_ready = false;
+        g_stream_active = false;
         esp_http_client_cleanup(g_stream_client);
         g_stream_client = NULL;
-        return err;
+        vTaskDelete(NULL);
+        return;
     }
+
     g_stream_ready = true;
-    ESP_LOGI(TAG, "STT Stream Opened");
+    
+    while (g_stream_active) {
+        size_t item_size;
+        uint8_t *item = xRingbufferReceiveUpTo(g_stream_rb, &item_size, pdMS_TO_TICKS(100), 1024);
+        if (item) {
+            int written = esp_http_client_write(g_stream_client, (const char*)item, (int)item_size);
+            vRingbufferReturnItem(g_stream_rb, item);
+            if (written < 0) {
+                ESP_LOGE(TAG, "Stream write failed");
+                break;
+            }
+        }
+        // Periodically poll for response data (WIT returns text as we speak)
+        esp_http_client_fetch_headers(g_stream_client);
+    }
+    
+    // Send final zero-length chunk to close the request
+    esp_http_client_write(g_stream_client, NULL, 0);
+    esp_http_client_fetch_headers(g_stream_client);
+
+    ESP_LOGI(TAG, "STT Stream Task Finishing");
+    g_stream_ready = false;
+    g_stream_active = false;
+    vTaskDelete(NULL);
+    g_stream_task_handle = NULL;
+}
+
+esp_err_t wit_stt_stream_start(wit_stt_callback_t cb) {
+    if (g_stream_active) return ESP_ERR_INVALID_STATE;
+    
+    g_stt_cb = cb;
+    g_stream_active = true;
+    g_stream_ready = false;
+    
+    if (g_stream_collector.buf) {
+        free(g_stream_collector.buf);
+        g_stream_collector.buf = NULL;
+    }
+    g_stream_collector.size = 0;
+
+    if (!g_stream_rb) {
+        g_stream_rb = xRingbufferCreate(STT_RING_BUFFER_SIZE, RINGBUF_TYPE_BYTEBUF);
+    } else {
+        // Clear any leftover data
+        size_t size;
+        void *item;
+        while ((item = xRingbufferReceive(g_stream_rb, &size, 0))) {
+            vRingbufferReturnItem(g_stream_rb, item);
+        }
+    }
+
+    xTaskCreatePinnedToCore(_stt_stream_task, "wit_stt_task", 8192, NULL, 5, &g_stream_task_handle, 1);
+    
+    // Wait a short bit for task to start and headers to be sent? 
+    // Or just let feed handle it.
     return ESP_OK;
 }
 
 esp_err_t wit_stt_stream_feed(uint8_t *pcm_audio, size_t len) {
-    if (!g_stream_client || !g_stream_ready) return ESP_ERR_INVALID_STATE;
+    if (!g_stream_active || !g_stream_rb) return ESP_ERR_INVALID_STATE;
     
-    int written = esp_http_client_write(g_stream_client, (const char*)pcm_audio, (int)len);
-    if (written < 0) {
-        // Only log error once if we lose connection
-        static uint32_t last_fail = 0;
-        if (esp_log_timestamp() - last_fail > 1000) {
-            ESP_LOGE(TAG, "Stream feed failed (Connection Reset?)");
-            last_fail = esp_log_timestamp();
+    BaseType_t ret = xRingbufferSend(g_stream_rb, pcm_audio, len, 0);
+    if (ret != pdTRUE) {
+        // Log sparingly
+        static uint32_t last_log = 0;
+        if (esp_log_timestamp() - last_log > 2000) {
+            ESP_LOGW(TAG, "STT Ringbuffer full, dropping audio chunk");
+            last_log = esp_log_timestamp();
         }
-        g_stream_ready = false;
         return ESP_FAIL;
     }
-    
-    // Periodically poll for incoming data (don't block the audio task too much)
-    static uint32_t last_poll = 0;
-    if (esp_log_timestamp() - last_poll > 250) {
-        esp_http_client_fetch_headers(g_stream_client);
-        last_poll = esp_log_timestamp();
-    }
-    
     return ESP_OK;
 }
 
 wit_nlu_result_t* wit_stt_stream_stop(void) {
-    if (!g_stream_client) return NULL;
-    g_stream_ready = false;
+    if (!g_stream_active) return NULL;
     
-    // Close the chunked request by sending final zero-length chunk
-    esp_http_client_fetch_headers(g_stream_client); // Final check for data
+    // Signal task to stop reading and finish the request
+    g_stream_active = false;
+    
+    // Wait for task to finish (max 5 seconds)
+    int timeout = 50;
+    while (g_stream_task_handle && timeout-- > 0) {
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
     
     wit_nlu_result_t *res = NULL;
-    
-    // Wit.ai streaming results are messy. We need to find the LAST valid JSON object
-    // in the collector buffer that contains "FINAL_UNDERSTANDING" or similar.
     if (g_stream_collector.buf) {
-        char *ptr = g_stream_collector.buf;
-        while (ptr) {
-            char *next_brace = strstr(ptr, "{");
-            if (!next_brace) break;
-            
-            cJSON *root = cJSON_Parse(next_brace);
-            if (root) {
-                cJSON *type = cJSON_GetObjectItem(root, "type");
-                if (type && strstr(type->valuestring, "FINAL")) {
-                    // This is likely our winner.
-                    if (!res) res = (wit_nlu_result_t*)calloc(1, sizeof(wit_nlu_result_t));
-                    
-                    cJSON *text = cJSON_GetObjectItem(root, "text");
-                    if (cJSON_IsString(text)) {
-                        if (res->text) free(res->text);
-                        res->text = strdup(text->valuestring);
-                    }
-                    
-                    cJSON *intents = cJSON_GetObjectItem(root, "intents");
-                    if (cJSON_IsArray(intents) && cJSON_GetArraySize(intents) > 0) {
-                        cJSON *intent_obj = cJSON_GetArrayItem(intents, 0);
-                        cJSON *name = cJSON_GetObjectItem(intent_obj, "name");
-                        cJSON *conf = cJSON_GetObjectItem(intent_obj, "confidence");
-                        if (cJSON_IsString(name)) {
-                            if (res->intent) free(res->intent);
-                            res->intent = strdup(name->valuestring);
-                            res->intent_conf = (float)conf->valuedouble;
-                        }
-                    }
-                }
-                cJSON_Delete(root);
-            }
-            ptr = next_brace + 1; // Move past this brace to find the next object
-        }
+        res = _parse_wit_response(g_stream_collector.buf);
+        free(g_stream_collector.buf);
+        g_stream_collector.buf = NULL;
     }
+    g_stream_collector.size = 0;
 
-    if (g_stream_collector.buf) free(g_stream_collector.buf);
-    esp_http_client_cleanup(g_stream_client);
-    g_stream_client = NULL;
-    g_stt_cb = NULL;
-    memset(&g_stream_collector, 0, sizeof(response_collector_t));
+    if (g_stream_client) {
+        esp_http_client_cleanup(g_stream_client);
+        g_stream_client = NULL;
+    }
     
+    g_stt_cb = NULL;
     return res;
 }
 
