@@ -49,6 +49,10 @@ extern lv_obj_t *ui_ImageBodyShadow;
 void ui_event_PanelSleep(lv_event_t *e);
 extern lv_obj_t *ui_PanelSleep;
 extern lv_obj_t *ui_ImageSleepBody;
+extern lv_obj_t *ui_LabelTime;
+extern lv_obj_t *ui_LabelDate;
+extern lv_obj_t *ui_BtnSensors;
+extern lv_obj_t *ui_LabelBtnSensors;
 extern lv_obj_t *ui_Image3;
 extern lv_obj_t *ui_ImageSleepEye;
 extern lv_obj_t *ui_ContainerBigZ;
@@ -102,6 +106,13 @@ void ui_event_ImageResetBack(lv_event_t *e);
 extern lv_obj_t *ui_ImageResetBack;
 void ui_event____initial_actions0(lv_event_t *e);
 extern lv_obj_t *ui____initial_actions0;
+
+// SCREEN: ui_ScreenSensors
+void ui_ScreenSensors_screen_init(void);
+extern lv_obj_t *ui_ScreenSensors;
+extern lv_obj_t *ui_LabelSensorsTitle;
+extern lv_obj_t *ui_LabelTempValue;
+extern lv_obj_t *ui_LabelHumValue;
 
 // EVENT: event for ESP32_S3_BOX_Lite
 lv_group_t *ui_get_btn_op_group(void);

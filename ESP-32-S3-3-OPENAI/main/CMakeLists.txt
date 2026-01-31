@@ -4,6 +4,8 @@ file(GLOB_RECURSE UI_SRCS ${UI_DIR}/*.c)
 set(APP_DIR ./app)
 set(APP_SRCS 
     ${APP_DIR}/app_audio.c
+    ${APP_DIR}/app_sensor.c
+    ${APP_DIR}/app_sntp.c
     ${APP_DIR}/app_sr.c
     ${APP_DIR}/app_tts.c
     ${APP_DIR}/app_ui_ctrl.c

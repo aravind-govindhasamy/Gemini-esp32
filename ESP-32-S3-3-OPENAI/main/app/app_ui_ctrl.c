@@ -8,15 +8,18 @@
 
 #include "app_ui_ctrl.h"
 #include "app_wifi.h"
+#include "app_sntp.h"
+#include "app_sensor.h"
 #include "bsp/esp-bsp.h"
 
 #include "ui_helpers.h"
 #include "ui.h"
 
 #define LABEL_WIFI_TEXT                 "Connecting to Wi-Fi\n"
-#define LABEL_NOT_WIFI_TEXT                 "Not Connected to Wi-Fi\n"
+#define LABEL_NOT_WIFI_TEXT             "Not Connected to Wi-Fi\n"
 #define LABEL_WIFI_DOT_COUNT_MAX        (10)
 #define WIFI_CHECK_TIMER_INTERVAL_S     (1)
+#define CLOCK_UPDATE_TIMER_INTERVAL_MS  (1000)
 #define REPLY_SCROLL_TIMER_INTERVAL_MS  (1000)
 #define REPLY_SCROLL_SPEED              (1)
 
@@ -31,6 +34,41 @@ static uint16_t content_height = 0;
 
 static void reply_content_scroll_timer_handler();
 static void wifi_check_timer_handler(lv_timer_t *timer);
+
+static void clock_update_timer_handler(lv_timer_t *timer)
+{
+    char time_str[16];
+    char date_str[32];
+    
+    // Update Time & Date
+    if (app_sntp_get_time_str(time_str, sizeof(time_str))) {
+        if (ui_LabelTime) lv_label_set_text(ui_LabelTime, time_str);
+    } else {
+        if (ui_LabelTime) lv_label_set_text(ui_LabelTime, "--:--");
+    }
+    
+    if (app_sntp_get_date_str(date_str, sizeof(date_str))) {
+        if (ui_LabelDate) lv_label_set_text(ui_LabelDate, date_str);
+    }
+
+    // Update Sensors if screen is active
+    if (lv_scr_act() == ui_ScreenSensors) {
+        float temp = 0, hum = 0;
+        esp_err_t ret = app_sensor_get_values(&temp, &hum);
+        if (ret == ESP_OK) {
+            char val_str[16];
+            snprintf(val_str, sizeof(val_str), "%.1f °C", temp);
+            if (ui_LabelTempValue) lv_label_set_text(ui_LabelTempValue, val_str);
+            
+            snprintf(val_str, sizeof(val_str), "%.1f %%", hum);
+            if (ui_LabelHumValue) lv_label_set_text(ui_LabelHumValue, val_str);
+        } else {
+            ESP_LOGW(TAG, "Sensor read failed: %s", esp_err_to_name(ret));
+            if (ui_LabelTempValue) lv_label_set_text(ui_LabelTempValue, "Error");
+            if (ui_LabelHumValue) lv_label_set_text(ui_LabelHumValue, "Error");
+        }
+    }
+}
 
 static void ui_event_PanelReply(lv_event_t *e)
 {
@@ -56,6 +94,7 @@ void ui_ctrl_init(void)
     lv_timer_pause(scroll_timer_handle);
 
     lv_timer_create(wifi_check_timer_handler, WIFI_CHECK_TIMER_INTERVAL_S * 1000, NULL);
+    lv_timer_create(clock_update_timer_handler, CLOCK_UPDATE_TIMER_INTERVAL_MS, NULL);
 
     bsp_display_unlock();
 }

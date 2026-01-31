@@ -5,6 +5,18 @@
 
 #include "../ui.h"
 
+lv_obj_t *ui_LabelTime;
+lv_obj_t *ui_LabelDate;
+lv_obj_t *ui_BtnSensors;
+lv_obj_t *ui_LabelBtnSensors;
+
+void ui_event_BtnSensors(lv_event_t *e) {
+    lv_event_code_t event_code = lv_event_get_code(e);
+    if (event_code == LV_EVENT_CLICKED) {
+        lv_disp_load_scr(ui_ScreenSensors);
+    }
+}
+
 void ui_ScreenListen_screen_init(void)
 {
     ui_ScreenListen = lv_obj_create(NULL);
@@ -134,6 +146,45 @@ void ui_ScreenListen_screen_init(void)
     lv_obj_set_style_pad_bottom(ui_ContainerSmallZ, 0, LV_PART_SCROLLBAR | LV_STATE_DEFAULT);
     lv_obj_set_style_pad_row(ui_ContainerSmallZ, 0, LV_PART_SCROLLBAR | LV_STATE_DEFAULT);
     lv_obj_set_style_pad_column(ui_ContainerSmallZ, 0, LV_PART_SCROLLBAR | LV_STATE_DEFAULT);
+
+    // TIME LABEL
+    ui_LabelTime = lv_label_create(ui_PanelSleep);
+    lv_obj_set_width(ui_LabelTime, LV_SIZE_CONTENT);
+    lv_obj_set_height(ui_LabelTime, LV_SIZE_CONTENT);
+    lv_obj_set_align(ui_LabelTime, LV_ALIGN_TOP_MID);
+    lv_obj_set_x(ui_LabelTime, 0);
+    lv_obj_set_y(ui_LabelTime, 10);
+    lv_label_set_text(ui_LabelTime, "00:00");
+    lv_obj_set_style_text_color(ui_LabelTime, lv_color_hex(0xFFFFFF), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(ui_LabelTime, &ui_font_PingFangEN20, LV_PART_MAIN | LV_STATE_DEFAULT);
+
+    // DATE LABEL
+    ui_LabelDate = lv_label_create(ui_PanelSleep);
+    lv_obj_set_width(ui_LabelDate, LV_SIZE_CONTENT);
+    lv_obj_set_height(ui_LabelDate, LV_SIZE_CONTENT);
+    lv_obj_set_align(ui_LabelDate, LV_ALIGN_TOP_MID);
+    lv_obj_set_x(ui_LabelDate, 0);
+    lv_obj_set_y(ui_LabelDate, 35);
+    lv_label_set_text(ui_LabelDate, "Mon, Jan 01");
+    lv_obj_set_style_text_color(ui_LabelDate, lv_color_hex(0xCCCCCC), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(ui_LabelDate, &ui_font_PingFangEN14, LV_PART_MAIN | LV_STATE_DEFAULT);
+
+    // SENSORS BUTTON
+    ui_BtnSensors = lv_btn_create(ui_PanelSleep);
+    lv_obj_set_width(ui_BtnSensors, 80);
+    lv_obj_set_height(ui_BtnSensors, 30);
+    lv_obj_set_align(ui_BtnSensors, LV_ALIGN_TOP_RIGHT);
+    lv_obj_set_x(ui_BtnSensors, -10);
+    lv_obj_set_y(ui_BtnSensors, 10);
+    lv_obj_set_style_bg_color(ui_BtnSensors, lv_color_hex(0xFFFFFF), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_bg_opa(ui_BtnSensors, 50, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_add_event_cb(ui_BtnSensors, ui_event_BtnSensors, LV_EVENT_ALL, NULL);
+
+    ui_LabelBtnSensors = lv_label_create(ui_BtnSensors);
+    lv_obj_set_align(ui_LabelBtnSensors, LV_ALIGN_CENTER);
+    lv_label_set_text(ui_LabelBtnSensors, "Sensors");
+    lv_obj_set_style_text_color(ui_LabelBtnSensors, lv_color_hex(0x000000), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(ui_LabelBtnSensors, &ui_font_PingFangEN14, LV_PART_MAIN | LV_STATE_DEFAULT);
 
     lv_obj_t *ui_LabelBranding = lv_label_create(ui_PanelSleep);
     lv_obj_set_width(ui_LabelBranding, LV_SIZE_CONTENT);

@@ -28,6 +28,8 @@
 #include "gemini.h"
 #include "app_tts.h"
 #include "app_ui_ctrl.h"
+#include "app_sensor.h"
+#include "app_sntp.h"
 
 #define SCROLL_START_DELAY_S            (1.5)
 #define LISTEN_SPEAK_PANEL_DELAY_MS     2000
@@ -192,6 +194,10 @@ void app_main()
     bsp_display_backlight_on();
     ui_ctrl_init();
     app_network_start();
+
+    // Init Sensors and Time
+    app_sensor_init();
+    app_sntp_init();
 
     ESP_LOGI(TAG, "User Persona: %s, Age: %" PRId32, sys_param->user_name, sys_param->user_age);
     gemini_init(sys_param->gemini_key);

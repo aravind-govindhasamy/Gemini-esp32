@@ -402,6 +402,7 @@ void ui_init(void)
     ui_ScreenListen_screen_init();
     ui_ScreenSettings_screen_init();
     ui_ScreenReset_screen_init();
+    ui_ScreenSensors_screen_init();
     ui____initial_actions0 = lv_obj_create(NULL);
     lv_obj_add_event_cb(ui____initial_actions0, ui_event____initial_actions0, LV_EVENT_ALL, NULL);
 

@@ -19,6 +19,7 @@
 #include "esp_vfs.h"
 #include "app_sr.h"
 #include "app_audio.h"
+#include "app_sensor.h"
 #include "bsp/esp-bsp.h"
 #include "bsp_board.h"
 #include "audio_player.h"
@@ -32,8 +33,7 @@
 
 #define LISTEN_SPEAK_PANEL_DELAY_MS     2000
 #define DEBUG_SAVE_PCM                  1
-#define MAX_FILE_SIZE                   (1024 * 1024)
-#define FILE_SIZE                       (1024 * 1024)
+// MAX_FILE_SIZE and FILE_SIZE are defined in app_audio.h
 static const char *TAG = "app_audio";
 
 #if !CONFIG_BSP_BOARD_ESP32_S3_BOX_Lite
@@ -344,6 +344,26 @@ void sr_handler_task(void *pvParam)
             if (result.command_id == 6 || result.command_id == 7) { // Stop or Close
                 ESP_LOGI(TAG, "Voice Command: CLOSE UI");
                 ui_ctrl_show_panel(UI_CTRL_PANEL_SLEEP, 0);
+                continue;
+            }
+
+            if (result.command_id == 9) { // CHECK SENSORS
+                ESP_LOGI(TAG, "Voice Command: CHECK SENSORS");
+                float temp = 0, hum = 0;
+                char response_text[128];
+                
+                if (app_sensor_get_values(&temp, &hum) == ESP_OK) {
+                    snprintf(response_text, sizeof(response_text), 
+                        "The temperature is %.1f degrees Celsius and humidity is %.1f percent.", temp, hum);
+                } else {
+                    snprintf(response_text, sizeof(response_text), 
+                        "Sorry, I cannot read the sensor values at the moment. Please check the connection.");
+                }
+
+                ui_ctrl_show_panel(UI_CTRL_PANEL_REPLY, 0);
+                ui_ctrl_label_show_text(UI_CTRL_LABEL_REPLY_QUESTION, "Check Sensors");
+                ui_ctrl_label_show_text(UI_CTRL_LABEL_REPLY_CONTENT, response_text);
+                app_tts_speak(response_text);
                 continue;
             }
 
