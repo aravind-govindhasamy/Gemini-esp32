@@ -326,7 +326,7 @@ void sr_handler_task(void *pvParam)
             }
 
             if (WIFI_STATUS_CONNECTED_OK == wifi_connected_already()) {
-                gemini_audio_bot_trigger(record_audio_buffer, record_total_len + sizeof(wav_header_t), nlu_res);
+                gemini_audio_bot_trigger(record_audio_buffer, record_total_len * sizeof(int16_t) + sizeof(wav_header_t), nlu_res);
             } else {
                 ui_ctrl_show_panel(UI_CTRL_PANEL_SLEEP, LISTEN_SPEAK_PANEL_DELAY_MS);
             }
@@ -358,7 +358,7 @@ void sr_handler_task(void *pvParam)
             audio_play_task("/spiffs/echo_en_ok.wav");
             if (WIFI_STATUS_CONNECTED_OK == wifi_connected_already()) {
                 // Even for commands, send audio to get personalized "Universal" response
-                gemini_audio_bot_trigger(record_audio_buffer, record_total_len + sizeof(wav_header_t), NULL);
+                gemini_audio_bot_trigger(record_audio_buffer, record_total_len * sizeof(int16_t) + sizeof(wav_header_t), NULL);
             }
             continue;
         }

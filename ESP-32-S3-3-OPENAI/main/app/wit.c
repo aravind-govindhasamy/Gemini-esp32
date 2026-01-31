@@ -9,7 +9,7 @@
 #include "wit.h"
 
 #define KEY_SIZE 165
-#define STT_RING_BUFFER_SIZE (32 * 1024)
+#define STT_RING_BUFFER_SIZE (64 * 1024)
 
 typedef struct {
     char *buf;
@@ -185,7 +185,7 @@ static void _stt_stream_task(void *pv) {
         .method = HTTP_METHOD_POST,
         .crt_bundle_attach = esp_crt_bundle_attach,
         .timeout_ms = 15000,
-        .buffer_size = 10240,
+        .buffer_size = 10240, // Increased buffer for stability
         .event_handler = _http_event_handler,
         .user_data = &g_stream_collector,
     };
@@ -211,44 +211,64 @@ static void _stt_stream_task(void *pv) {
 
     g_stream_ready = true;
     bool headers_fetched = false;
+    uint32_t bytes_sent = 0;
     
     while (g_stream_active) {
         size_t item_size;
-        uint8_t *item = xRingbufferReceiveUpTo(g_stream_rb, &item_size, headers_fetched ? 0 : pdMS_TO_TICKS(100), 1024);
+        // Wait up to 50ms for audio data
+        uint8_t *item = xRingbufferReceiveUpTo(g_stream_rb, &item_size, pdMS_TO_TICKS(50), 2048);
+        
         if (item) {
             int written = esp_http_client_write(g_stream_client, (const char*)item, (int)item_size);
-            if (written < 0) {
-                ESP_LOGE(TAG, "Stream write failed");
-                break;
-            }
             vRingbufferReturnItem(g_stream_rb, item);
             
-            // Try to get headers if not already done. Wit.ai streams responses.
-            if (!headers_fetched) {
-               if (esp_http_client_fetch_headers(g_stream_client) >= 0) {
-                   headers_fetched = true;
-                   ESP_LOGI(TAG, "STT Stream Headers Received");
-                   // Small timeout for live reads
-                   esp_http_client_set_timeout_ms(g_stream_client, 200);
-               }
+            if (written < 0) {
+                ESP_LOGW(TAG, "Stream write failed (possibly closed by server), headers_fetched=%d", headers_fetched);
+                break;
+            }
+            bytes_sent += written;
+            
+            // Try to get response headers after sending some initial data
+            if (!headers_fetched && bytes_sent > 4096) {
+                if (esp_http_client_fetch_headers(g_stream_client) >= 0) {
+                    headers_fetched = true;
+                    ESP_LOGI(TAG, "STT Stream Connected & Headers Received");
+                    // Use small timeout for subsequent duplex reads
+                    esp_http_client_set_timeout_ms(g_stream_client, 100);
+                }
             }
         }
         
+        // After headers are fetched, poll for partial transcriptions from Wit.ai
         if (headers_fetched) {
-            char read_buf[256];
-            // Non-blocking read (triggers event handler)
-            esp_http_client_read(g_stream_client, read_buf, sizeof(read_buf));
+            char read_buf[512];
+            int n = esp_http_client_read(g_stream_client, read_buf, sizeof(read_buf));
+            if (n < 0 && n != -ESP_ERR_HTTP_EAGAIN) {
+                ESP_LOGW(TAG, "Stream read error: %d, ending duplex", n);
+                break;
+            }
+            
+            // Check if the collector now contains a "FINAL" message to stop writing early
+            if (g_stream_collector.buf && strstr(g_stream_collector.buf, "FINAL_UNDERSTANDING")) {
+                ESP_LOGI(TAG, "Final understanding received, closing write stream");
+                break;
+            }
         }
 
-        if (!item) vTaskDelay(pdMS_TO_TICKS(10));
+        // Slow down the loop slightly if no data to prevent CPU starvation
+        if (!item) {
+            vTaskDelay(pdMS_TO_TICKS(10));
+        }
     }
     
-    // Send final zero-length chunk to close the request
-    esp_http_client_write(g_stream_client, NULL, 0);
-    if (!headers_fetched) esp_http_client_fetch_headers(g_stream_client);
+    // Close chunked stream properly
+    if (g_stream_client) {
+        esp_http_client_write(g_stream_client, NULL, 0); 
+        if (!headers_fetched) esp_http_client_fetch_headers(g_stream_client);
+    }
     
-    // Final read flush
-    esp_http_client_set_timeout_ms(g_stream_client, 1000);
+    // Final read flush to ensure we get the last understanding object
+    esp_http_client_set_timeout_ms(g_stream_client, 2000);
     char final_buf[512];
     while(esp_http_client_read(g_stream_client, final_buf, sizeof(final_buf)) > 0);
 
@@ -283,7 +303,7 @@ esp_err_t wit_stt_stream_start(wit_stt_callback_t cb) {
         }
     }
 
-    xTaskCreatePinnedToCore(_stt_stream_task, "wit_stt_task", 8192, NULL, 5, &g_stream_task_handle, 1);
+    xTaskCreatePinnedToCore(_stt_stream_task, "wit_stt_task", 12288, NULL, 5, &g_stream_task_handle, 1);
     
     // Wait a short bit for task to start and headers to be sent? 
     // Or just let feed handle it.

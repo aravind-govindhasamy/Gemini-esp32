@@ -18,7 +18,7 @@ typedef struct {
     char gemini_key[KEY_SIZE];        /* Gemini key. */
     char wit_token[KEY_SIZE];         /* Wit.ai token. */
     char user_name[32];               /* User's name */
-    int user_age;                     /* User's age */
+    int32_t user_age;                 /* User's age */
 } sys_param_t;
 
 esp_err_t settings_factory_reset(void);

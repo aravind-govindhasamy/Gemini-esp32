@@ -218,10 +218,8 @@ esp_err_t gemini_audio_bot_trigger(uint8_t *audio, size_t len, wit_nlu_result_t 
                 if (fp) {
                     audio_player_play(fp);
                     ui_ctrl_reply_set_audio_start_flag(true);
-                    while (audio_player_get_state() == AUDIO_PLAYER_STATE_PLAYING) {
-                        vTaskDelay(pdMS_TO_TICKS(100));
-                    }
                     ui_ctrl_reply_set_audio_end_flag(true);
+                    ui_ctrl_show_panel(UI_CTRL_PANEL_SLEEP, LISTEN_SPEAK_PANEL_DELAY_MS);
                 }
             }
             gemini_response_free(voice_res);
