@@ -186,7 +186,8 @@ static void audio_detect_task(void *arg)
                 frame_keep++;
             }
 
-            if ((100 == frame_keep) && (AFE_VAD_SILENCE == res->vad_state)) {
+            if ((30 == frame_keep) && (AFE_VAD_SILENCE == res->vad_state)) {
+                ESP_LOGI(TAG, "Silence detected (1.0s) - Triggering Cloud ASR");
                 sr_result_t result = {
                     .wakenet_mode = WAKENET_NO_DETECT,
                     .state = ESP_MN_STATE_TIMEOUT,
@@ -284,14 +285,19 @@ esp_err_t app_sr_start(bool record_en)
     }
 
     ESP_LOGI(TAG, "Adding commands to Multinet 6...");
-    esp_mn_commands_add(1, "TELL ME A JOKE");
-    esp_mn_commands_add(2, "SING A SONG");
-    esp_mn_commands_add(3, "WHAT IS THE ALPHABET");
-    esp_mn_commands_add(4, "WHO ARE YOU");
-    esp_mn_commands_add(5, "I LOVE YOU");
+    ret = esp_mn_commands_add(1, "TELL ME A JOKE");
+    ret |= esp_mn_commands_add(2, "SING A SONG");
+    ret |= esp_mn_commands_add(3, "WHAT IS THE ALPHABET");
+    ret |= esp_mn_commands_add(4, "WHO ARE YOU");
+    ret |= esp_mn_commands_add(5, "I LOVE YOU");
+    ret |= esp_mn_commands_add(6, "STOP");
+    ret |= esp_mn_commands_add(7, "CLOSE");
     
-    esp_mn_commands_print();
-    esp_mn_commands_update();
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to add regular commands!");
+    } else {
+        ESP_LOGI(TAG, "7 phrases registered successfully.");
+    }
 
     g_sr_data->multinet = multinet;
     g_sr_data->model_data = model_data;

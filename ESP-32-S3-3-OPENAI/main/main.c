@@ -47,7 +47,8 @@ esp_err_t gemini_speech_bot_trigger(const char *prompt)
 
     ESP_LOGI(TAG, "Querying Gemini with prompt: %s", prompt);
     gemini_init(sys_param->gemini_key);
-    response = gemini_text_query(prompt);
+    // Pass persistent user info
+    response = gemini_text_query(prompt, sys_param->user_name, sys_param->user_age);
 
     if (NULL == response || NULL == response->text) {
         ret = ESP_ERR_INVALID_RESPONSE;
@@ -74,17 +75,91 @@ esp_err_t gemini_speech_bot_trigger(const char *prompt)
             if (fp) {
                 ESP_LOGI(TAG, "Playing Gemini Voice Output (%zu bytes)", response->audio_len);
                 audio_player_play(fp);
+                ui_ctrl_reply_set_audio_start_flag(true);
+                
+                // Wait for audio to finish playing
                 while (audio_player_get_state() == AUDIO_PLAYER_STATE_PLAYING) {
                     vTaskDelay(pdMS_TO_TICKS(100));
                 }
+                ui_ctrl_reply_set_audio_end_flag(true);
             }
         }
+    } else {
+        // No audio, wait a bit for scrolling
+        vTaskDelay(pdMS_TO_TICKS(1000));
+        ui_ctrl_reply_set_audio_start_flag(true);
+        ui_ctrl_reply_set_audio_end_flag(true);
     }
     
-    vTaskDelay(pdMS_TO_TICKS(2000));
-    ui_ctrl_reply_set_audio_start_flag(true);
-    ui_ctrl_reply_set_audio_end_flag(true);
-    ui_ctrl_show_panel(UI_CTRL_PANEL_SLEEP, 1000);
+    // STICKY UI: Do NOT transition to sleep automatically!
+    // The screen will now stay on UI_CTRL_PANEL_REPLY until touched or "Close" is said.
+    // ui_ctrl_show_panel(UI_CTRL_PANEL_SLEEP, 10000); // REMOVED
+
+err:
+    if (response) gemini_response_free(response);
+    return ret;
+}
+
+esp_err_t gemini_audio_bot_trigger(uint8_t *audio, size_t len)
+{
+    esp_err_t ret = ESP_OK;
+    char *transcription = NULL;
+    gemini_response_t *response = NULL;
+
+    ui_ctrl_show_panel(UI_CTRL_PANEL_GET, 0);
+    ui_ctrl_label_show_text(UI_CTRL_LABEL_LISTEN_SPEAK, "Transcribing...");
+
+    // Step 1: Transcribe (The Ears)
+    transcription = gemini_stt_query(audio, len);
+    if (NULL == transcription) {
+        ESP_LOGE(TAG, "STT returned NULL");
+        ui_ctrl_label_show_text(UI_CTRL_LABEL_LISTEN_SPEAK, SORRY_CANNOT_UNDERSTAND);
+        ui_ctrl_show_panel(UI_CTRL_PANEL_SLEEP, LISTEN_SPEAK_PANEL_DELAY_MS);
+        return ESP_ERR_INVALID_RESPONSE;
+    }
+
+    ESP_LOGI(TAG, "Recognized: %s", transcription);
+    ui_ctrl_label_show_text(UI_CTRL_LABEL_LISTEN_SPEAK, transcription);
+    ui_ctrl_label_show_text(UI_CTRL_LABEL_REPLY_QUESTION, transcription);
+
+    // Step 2: Think (The Brain)
+    ESP_LOGI(TAG, "Querying Brain for: %s", transcription);
+    response = gemini_text_query(transcription, sys_param->user_name, sys_param->user_age);
+    free(transcription);
+
+    if (NULL == response || NULL == response->text) {
+        ret = ESP_ERR_INVALID_RESPONSE;
+        ui_ctrl_label_show_text(UI_CTRL_LABEL_LISTEN_SPEAK, SORRY_CANNOT_UNDERSTAND);
+        ui_ctrl_show_panel(UI_CTRL_PANEL_SLEEP, LISTEN_SPEAK_PANEL_DELAY_MS);
+        goto err;
+    }
+
+    // UI display success
+    ui_ctrl_label_show_text(UI_CTRL_LABEL_REPLY_CONTENT, response->text);
+    ui_ctrl_show_panel(UI_CTRL_PANEL_REPLY, 0);
+
+    // Play Voice Output if available
+    if (response->audio && response->audio_len > 0) {
+        FILE *fp = fopen("/spiffs/response.wav", "wb");
+        if (fp) {
+            fwrite(response->audio, 1, response->audio_len, fp);
+            fclose(fp);
+            fp = fopen("/spiffs/response.wav", "rb");
+            if (fp) {
+                ESP_LOGI(TAG, "Playing Gemini Voice Output (%zu bytes)", response->audio_len);
+                audio_player_play(fp);
+                ui_ctrl_reply_set_audio_start_flag(true);
+                while (audio_player_get_state() == AUDIO_PLAYER_STATE_PLAYING) {
+                    vTaskDelay(pdMS_TO_TICKS(100));
+                }
+                ui_ctrl_reply_set_audio_end_flag(true);
+            }
+        }
+    } else {
+        vTaskDelay(pdMS_TO_TICKS(1000));
+        ui_ctrl_reply_set_audio_start_flag(true);
+        ui_ctrl_reply_set_audio_end_flag(true);
+    }
 
 err:
     if (response) gemini_response_free(response);
@@ -126,6 +201,9 @@ void app_main()
     bsp_display_backlight_on();
     ui_ctrl_init();
     app_network_start();
+
+    ESP_LOGI(TAG, "User Persona: %s, Age: %d", sys_param->user_name, sys_param->user_age);
+    gemini_init(sys_param->gemini_key);
 
     ESP_LOGI(TAG, "speech recognition start");
     app_sr_start(false);

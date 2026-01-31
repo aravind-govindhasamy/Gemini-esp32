@@ -32,11 +32,25 @@ static uint16_t content_height = 0;
 static void reply_content_scroll_timer_handler();
 static void wifi_check_timer_handler(lv_timer_t *timer);
 
+static void ui_event_PanelReply(lv_event_t *e)
+{
+    lv_event_code_t event_code = lv_event_get_code(e);
+    if (event_code == LV_EVENT_CLICKED) {
+        ESP_LOGI(TAG, "Touch Close triggered");
+        ui_ctrl_show_panel(UI_CTRL_PANEL_SLEEP, 0);
+    }
+}
+
 void ui_ctrl_init(void)
 {
     bsp_display_lock(0);
 
     ui_init();
+
+    // Add touch-to-close to reply panel
+    lv_obj_add_event_cb(ui_PanelReply, ui_event_PanelReply, LV_EVENT_CLICKED, NULL);
+    // Make it clickable if not already
+    lv_obj_add_flag(ui_PanelReply, LV_OBJ_FLAG_CLICKABLE);
 
     scroll_timer_handle = lv_timer_create(reply_content_scroll_timer_handler, REPLY_SCROLL_TIMER_INTERVAL_MS / REPLY_SCROLL_SPEED, NULL);
     lv_timer_pause(scroll_timer_handle);

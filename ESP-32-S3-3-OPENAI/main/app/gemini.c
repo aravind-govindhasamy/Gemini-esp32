@@ -54,6 +54,7 @@ static gemini_response_t* gemini_query_interactions(cJSON *contents_item) {
     cJSON_Delete(root);
 
     char url[256];
+    // Use v1beta for interactions
     snprintf(url, sizeof(url), "https://generativelanguage.googleapis.com/v1beta/interactions?key=%s", g_api_key);
     
     esp_http_client_config_t config = {
@@ -127,12 +128,19 @@ static gemini_response_t* gemini_query_interactions(cJSON *contents_item) {
     return res;
 }
 
-gemini_response_t* gemini_text_query(const char *text) {
-    ESP_LOGI(TAG, "Querying Gemini with TEXT...");
+gemini_response_t* gemini_text_query(const char *text, const char *name, int age) {
+    ESP_LOGI(TAG, "Querying Gemini (gemini-1.5-flash)...");
     cJSON *content = cJSON_CreateArray();
     cJSON *part_sys = cJSON_CreateObject();
     cJSON_AddStringToObject(part_sys, "type", "text");
-    cJSON_AddStringToObject(part_sys, "text", "You are a friendly companion for a child. Be fun and safe. Listen and reply briefly.");
+    
+    char sys_prompt[512];
+    snprintf(sys_prompt, sizeof(sys_prompt), 
+        "You are a friendly companion for a child. Be fun and safe. Listen and reply briefly. "
+        "The child's name is %s and they are %d years old. Tailor your language to be age-appropriate.",
+        name ? name : "Friend", age > 0 ? age : 7);
+    
+    cJSON_AddStringToObject(part_sys, "text", sys_prompt);
     cJSON_AddItemToArray(content, part_sys);
     
     cJSON *part_user = cJSON_CreateObject();
@@ -143,7 +151,88 @@ gemini_response_t* gemini_text_query(const char *text) {
     return gemini_query_interactions(content);
 }
 
-gemini_response_t* gemini_audio_query(uint8_t *audio, size_t len) {
-    // Redundant as per user constraint
+char* gemini_stt_query(uint8_t *audio, size_t len) {
+    if (!audio || len == 0) return NULL;
+    ESP_LOGI(TAG, "Transcribing AUDIO (%zu bytes)...", len);
+
+    cJSON *root = cJSON_CreateObject();
+    cJSON *contents = cJSON_AddArrayToObject(root, "contents");
+    cJSON *content = cJSON_CreateObject();
+    cJSON_AddStringToObject(content, "role", "user");
+    cJSON *parts = cJSON_AddArrayToObject(content, "parts");
+    
+    // Prompt Part
+    cJSON *part_text = cJSON_CreateObject();
+    cJSON_AddStringToObject(part_text, "text", "Please transcribe this audio accurately. Only return the transcribed text, nothing else.");
+    cJSON_AddItemToArray(parts, part_text);
+
+    // Audio Part
+    cJSON *part_audio = cJSON_CreateObject();
+    cJSON *inline_data = cJSON_AddObjectToObject(part_audio, "inlineData");
+    cJSON_AddStringToObject(inline_data, "mimeType", "audio/wav");
+    
+    size_t b64_len = (len + 2) / 3 * 4 + 1;
+    char *b64_data = malloc(b64_len);
+    size_t out_len = 0;
+    mbedtls_base64_encode((unsigned char*)b64_data, b64_len, &out_len, audio, len);
+    cJSON_AddStringToObject(inline_data, "data", b64_data);
+    free(b64_data);
+    cJSON_AddItemToArray(parts, part_audio);
+    
+    cJSON_AddItemToArray(contents, content);
+
+    char *post_data = cJSON_PrintUnformatted(root);
+    cJSON_Delete(root);
+
+    char url[256];
+    snprintf(url, sizeof(url), "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=%s", g_api_key);
+
+    esp_http_client_config_t config = {
+        .url = url,
+        .method = HTTP_METHOD_POST,
+        .crt_bundle_attach = esp_crt_bundle_attach,
+        .timeout_ms = 15000,
+    };
+    esp_http_client_handle_t client = esp_http_client_init(&config);
+    esp_http_client_set_post_field(client, post_data, strlen(post_data));
+    esp_http_client_set_header(client, "Content-Type", "application/json");
+
+    char *transcription = NULL;
+    if (esp_http_client_perform(client) == ESP_OK) {
+        int status_code = esp_http_client_get_status_code(client);
+        if (status_code == 200) {
+            int content_len = esp_http_client_get_content_length(client);
+            char *resp_buf = malloc(content_len + 1);
+            esp_http_client_read_response_data(client, resp_buf, content_len);
+            resp_buf[content_len] = '\0';
+            
+            cJSON *resp_root = cJSON_Parse(resp_buf);
+            if (resp_root) {
+                cJSON *candidates = cJSON_GetObjectItem(resp_root, "candidates");
+                if (cJSON_IsArray(candidates)) {
+                    cJSON *candidate = cJSON_GetArrayItem(candidates, 0);
+                    cJSON *content_obj = cJSON_GetObjectItem(candidate, "content");
+                    cJSON *parts_obj = cJSON_GetObjectItem(content_obj, "parts");
+                    if (cJSON_IsArray(parts_obj)) {
+                        cJSON *part_obj = cJSON_GetArrayItem(parts_obj, 0);
+                        cJSON *text_obj = cJSON_GetObjectItem(part_obj, "text");
+                        if (cJSON_IsString(text_obj)) transcription = strdup(text_obj->valuestring);
+                    }
+                }
+                cJSON_Delete(resp_root);
+            }
+            free(resp_buf);
+        } else {
+            ESP_LOGE(TAG, "STT Failed: %d", status_code);
+        }
+    }
+    
+    esp_http_client_cleanup(client);
+    free(post_data);
+    return transcription;
+}
+
+gemini_response_t* gemini_audio_query(uint8_t *audio, size_t len, const char *name, int age) {
+    // This is now effectively legacy as main.c will use the two-step flow
     return NULL;
 }

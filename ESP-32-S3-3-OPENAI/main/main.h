@@ -10,5 +10,5 @@
  * @return esp_err_t ESP_OK if success
  */
 esp_err_t gemini_speech_bot_trigger(const char *prompt);
-
+esp_err_t gemini_audio_bot_trigger(uint8_t *audio, size_t len);
 #endif // MAIN_H

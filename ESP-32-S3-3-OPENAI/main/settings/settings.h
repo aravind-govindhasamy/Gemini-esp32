@@ -16,8 +16,11 @@ typedef struct {
     char ssid[SSID_SIZE];             /* SSID of target AP. */
     char password[PASSWORD_SIZE];     /* Password of target AP. */
     char gemini_key[KEY_SIZE];        /* Gemini key. */
+    char user_name[32];               /* User's name */
+    int user_age;                     /* User's age */
 } sys_param_t;
 
 esp_err_t settings_factory_reset(void);
 esp_err_t settings_read_parameter_from_nvs(void);
+esp_err_t settings_write_parameter_to_nvs(void);
 sys_param_t *settings_get_parameter(void);

@@ -312,10 +312,14 @@ void sr_handler_task(void *pvParam)
         }
 #endif
         if (ESP_MN_STATE_TIMEOUT == result.state) {
-            ESP_LOGI(TAG, "ESP_MN_STATE_TIMEOUT");
+            ESP_LOGI(TAG, "ESP_MN_STATE_TIMEOUT - Processing Universal Voice");
             audio_record_stop();
-            // In pure-offline mode, timeout just goes back to sleep
-            ui_ctrl_show_panel(UI_CTRL_PANEL_SLEEP, LISTEN_SPEAK_PANEL_DELAY_MS);
+            if (WIFI_STATUS_CONNECTED_OK == wifi_connected_already()) {
+                // Send the captured raw audio to Gemini for "Whatever I say" response
+                gemini_audio_bot_trigger(record_audio_buffer, record_total_len + sizeof(wav_header_t));
+            } else {
+                ui_ctrl_show_panel(UI_CTRL_PANEL_SLEEP, LISTEN_SPEAK_PANEL_DELAY_MS);
+            }
             continue;
         }
 
@@ -328,22 +332,20 @@ void sr_handler_task(void *pvParam)
         }
 
         if (ESP_MN_STATE_DETECTED & result.state) {
-            ESP_LOGI(TAG, "Command Detected:%d", result.command_id);
+            ESP_LOGI(TAG, "Command/Voice Detected:%d", result.command_id);
             audio_record_stop();
-            audio_play_task("/spiffs/echo_en_ok.wav");
             
-            const char *prompt = NULL;
-            switch (result.command_id) {
-                case 1: prompt = "Tell me a joke"; break;
-                case 2: prompt = "Sing a song"; break;
-                case 3: prompt = "What is the alphabet"; break;
-                case 4: prompt = "Who are you"; break;
-                case 5: prompt = "I love you"; break;
-                default: prompt = "Hi there"; break;
+            // Handle specialized UI/System commands first
+            if (result.command_id == 6 || result.command_id == 7) { // Stop or Close
+                ESP_LOGI(TAG, "Voice Command: CLOSE UI");
+                ui_ctrl_show_panel(UI_CTRL_PANEL_SLEEP, 0);
+                continue;
             }
-            
+
+            audio_play_task("/spiffs/echo_en_ok.wav");
             if (WIFI_STATUS_CONNECTED_OK == wifi_connected_already()) {
-                gemini_speech_bot_trigger(prompt);
+                // Even for commands, send audio to get personalized "Universal" response
+                gemini_audio_bot_trigger(record_audio_buffer, record_total_len + sizeof(wav_header_t));
             }
             continue;
         }

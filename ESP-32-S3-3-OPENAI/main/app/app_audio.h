@@ -6,10 +6,10 @@
 
 #pragma once
 
-#define DEBUG_SAVE_PCM      (1)
-#define PCM_ONE_CHANNEL     (1)
-#define FILE_SIZE (256000)
-#define MAX_FILE_SIZE       (1*1024*1024)
+#define DEBUG_SAVE_PCM          1
+#define PCM_ONE_CHANNEL         1
+#define FILE_SIZE               (1024 * 300)
+#define MAX_FILE_SIZE           (1024 * 300)
 #define RECORD_NAME         "/spiffs/record.wav"
 
 typedef struct {
