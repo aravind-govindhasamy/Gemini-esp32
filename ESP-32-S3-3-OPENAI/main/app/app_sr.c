@@ -292,11 +292,12 @@ esp_err_t app_sr_start(bool record_en)
     ret |= esp_mn_commands_add(5, "I LOVE YOU");
     ret |= esp_mn_commands_add(6, "STOP");
     ret |= esp_mn_commands_add(7, "CLOSE");
+    ret |= esp_mn_commands_add(8, "HI BRO");
     
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to add regular commands!");
     } else {
-        ESP_LOGI(TAG, "7 phrases registered successfully.");
+        ESP_LOGI(TAG, "8 phrases registered successfully (including Hi bro).");
     }
 
     g_sr_data->multinet = multinet;

@@ -135,6 +135,17 @@ void ui_ScreenListen_screen_init(void)
     lv_obj_set_style_pad_row(ui_ContainerSmallZ, 0, LV_PART_SCROLLBAR | LV_STATE_DEFAULT);
     lv_obj_set_style_pad_column(ui_ContainerSmallZ, 0, LV_PART_SCROLLBAR | LV_STATE_DEFAULT);
 
+    lv_obj_t *ui_LabelBranding = lv_label_create(ui_PanelSleep);
+    lv_obj_set_width(ui_LabelBranding, LV_SIZE_CONTENT);
+    lv_obj_set_height(ui_LabelBranding, LV_SIZE_CONTENT);
+    lv_obj_set_align(ui_LabelBranding, LV_ALIGN_BOTTOM_MID);
+    lv_obj_set_y(ui_LabelBranding, -15);
+    lv_label_set_text(ui_LabelBranding, "CIRCUIT DIGEST\n2026 Challenge\nDigiKey");
+    lv_obj_set_style_text_color(ui_LabelBranding, lv_color_hex(0xFFFFFF), LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_align(ui_LabelBranding, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_font(ui_LabelBranding, &ui_font_PingFangEN20, LV_PART_MAIN | LV_STATE_DEFAULT);
+    lv_obj_set_style_text_line_space(ui_LabelBranding, 5, LV_PART_MAIN | LV_STATE_DEFAULT);
+
     ui_PanelListen = lv_obj_create(ui_ScreenListen);
     lv_obj_set_width(ui_PanelListen, 320);
     lv_obj_set_height(ui_PanelListen, 240);

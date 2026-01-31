@@ -104,11 +104,11 @@ void ui_ScreenSetup_screen_init(void)
     lv_obj_set_align(ui_LabelSetupStepContent, LV_ALIGN_TOP_MID);
 #if !CONFIG_BSP_BOARD_ESP32_S3_BOX_Lite
     lv_label_set_text(ui_LabelSetupStepContent,
-                      "1. Wake up the device using \"Hi ESP\".\n2. Ask a question within 10 seconds and wait for a reply.\n3.  In sleep mode, click screen can wake up the device. ");
+                      "1. Say \"Hi ESP\" or \"Hi bro\" to begin.\n2. Ask any question for Gemini AI.\n3. Circuit Digest 2026 Innovation Challenge.\n4. Powered by Gemini, Sponsored by DigiKey.");
     lv_obj_set_style_text_line_space(ui_LabelSetupStepContent, 10, LV_PART_MAIN | LV_STATE_DEFAULT);
 #else
     lv_label_set_text(ui_LabelSetupStepContent,
-                      "1. Wake up the device using \"Hi ESP\".\n2. Ask a question within 10 seconds and wait for a reply.\n3. In sleep mode, click \"Enter\" button can wake up the device.\n4. Long press \"Enter\" button to enter/exit Settings.");
+                      "1. Say \"Hi ESP\" or \"Hi bro\" to begin.\n2. Ask any question for Gemini AI.\n3. Circuit Digest 2026 Innovation Challenge.\n4. Powered by Gemini, Sponsored by DigiKey.");
     lv_obj_set_style_text_line_space(ui_LabelSetupStepContent, 7, LV_PART_MAIN | LV_STATE_DEFAULT);
 #endif
     lv_obj_set_style_text_color(ui_LabelSetupStepContent, lv_color_hex(0xFFFFFF), LV_PART_MAIN | LV_STATE_DEFAULT);

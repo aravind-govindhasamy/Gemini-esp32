@@ -140,7 +140,7 @@ esp_err_t gemini_audio_bot_trigger(uint8_t *audio, size_t len, nlu_result_t *pre
     ESP_LOGI(TAG, "Gemini Response: %s", response->text);
 
     // UI display success
-    ui_ctrl_label_show_text(UI_CTRL_LABEL_REPLY_QUESTION, "Gemini Brain"); 
+    ui_ctrl_label_show_text(UI_CTRL_LABEL_REPLY_QUESTION, "CIRCUIT DIGEST"); 
     ui_ctrl_label_show_text(UI_CTRL_LABEL_LISTEN_SPEAK, response->text);
     ui_ctrl_label_show_text(UI_CTRL_LABEL_REPLY_CONTENT, response->text);
     ui_ctrl_show_panel(UI_CTRL_PANEL_REPLY, 0);

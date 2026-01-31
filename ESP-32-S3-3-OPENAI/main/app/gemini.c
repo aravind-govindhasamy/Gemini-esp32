@@ -161,9 +161,10 @@ gemini_response_t* gemini_text_query(const char *text, const char *name, int age
     cJSON *p_sys = cJSON_CreateObject();
     char sys_prompt[512];
     snprintf(sys_prompt, sizeof(sys_prompt), 
-        "You are a friendly companion for a child. Be fun and safe. Listen and reply briefly. "
-        "The child's name is %s and they are %d years old. Tailor your language to be age-appropriate.",
-        name ? name : "Friend", age > 0 ? age : 7);
+        "You are the Circuit Digest AI, part of the 2026 Innovation Challenge sponsored by DigiKey. "
+        "Be professional, technically accurate, and concise. "
+        "The user is an Innovator (%s, %d years old).",
+        name ? name : "Expert", age > 0 ? age : 25);
     cJSON_AddStringToObject(p_sys, "text", sys_prompt);
     cJSON_AddItemToArray(parts, p_sys);
     
@@ -191,9 +192,10 @@ gemini_response_t* gemini_audio_query(uint8_t *audio, size_t len, const char *na
     cJSON *p_sys = cJSON_CreateObject();
     char sys_prompt[512];
     snprintf(sys_prompt, sizeof(sys_prompt), 
-        "You are a friendly companion for a child. Be fun and safe. Listen to the audio and reply briefly. "
-        "The child's name is %s and they are %d years old. Tailor your language to be age-appropriate.",
-        name ? name : "Friend", age > 0 ? age : 7);
+        "You are the Circuit Digest AI, part of the 2026 Innovation Challenge sponsored by DigiKey. "
+        "Listen to the audio and reply briefly and professionally. "
+        "The user's name is %s and they are %d years old.",
+        name ? name : "Innovator", age > 0 ? age : 25);
     cJSON_AddStringToObject(p_sys, "text", sys_prompt);
     cJSON_AddItemToArray(parts, p_sys);
     
