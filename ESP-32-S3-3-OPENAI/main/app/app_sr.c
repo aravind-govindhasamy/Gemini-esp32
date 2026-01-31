@@ -186,8 +186,8 @@ static void audio_detect_task(void *arg)
                 frame_keep++;
             }
 
-            if ((30 == frame_keep) && (AFE_VAD_SILENCE == res->vad_state)) {
-                ESP_LOGI(TAG, "Silence detected (1.0s) - Triggering Cloud ASR");
+            if ((100 == frame_keep) && (AFE_VAD_SILENCE == res->vad_state)) {
+                ESP_LOGI(TAG, "Silence detected (1.6s) - Triggering Timeout");
                 sr_result_t result = {
                     .wakenet_mode = WAKENET_NO_DETECT,
                     .state = ESP_MN_STATE_TIMEOUT,
@@ -302,10 +302,10 @@ esp_err_t app_sr_start(bool record_en)
     g_sr_data->multinet = multinet;
     g_sr_data->model_data = model_data;
 
-    ret_val = xTaskCreatePinnedToCore(&audio_feed_task, "Feed Task", 8 * 1024, (void *)afe_data, 5, &g_sr_data->feed_task, 0);
+    ret_val = xTaskCreatePinnedToCore(&audio_feed_task, "Feed Task", 8 * 1024, (void *)afe_data, 15, &g_sr_data->feed_task, 0);
     ESP_GOTO_ON_FALSE(pdPASS == ret_val, ESP_FAIL, err, TAG,  "Failed create audio feed task");
 
-    ret_val = xTaskCreatePinnedToCore(&audio_detect_task, "Detect Task", 12 * 1024, (void *)afe_data, 5, &g_sr_data->detect_task, 1);
+    ret_val = xTaskCreatePinnedToCore(&audio_detect_task, "Detect Task", 12 * 1024, (void *)afe_data, 10, &g_sr_data->detect_task, 1);
     ESP_GOTO_ON_FALSE(pdPASS == ret_val, ESP_FAIL, err, TAG,  "Failed create audio detect task");
 
     ret_val = xTaskCreatePinnedToCore(&sr_handler_task, "SR Handler Task", 8 * 1024, NULL, 5, &g_sr_data->handle_task, 0);

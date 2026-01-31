@@ -42,6 +42,16 @@ esp_err_t bsp_codec_mute_set(bool mute);
  */
 esp_err_t bsp_codec_volume_set(int volume, int *v);
 
+/**
+ * @brief Get the speaker handle (for direct access)
+ */
+esp_codec_dev_handle_t bsp_board_get_play_handle(void);
+
+/**
+ * @brief Get the microphone handle (for direct access)
+ */
+esp_codec_dev_handle_t bsp_board_get_record_handle(void);
+
 #ifdef __cplusplus
 }
 #endif

@@ -113,3 +113,13 @@ esp_err_t bsp_codec_volume_set(int volume, int *v)
     }
     return ESP_FAIL;
 }
+
+esp_codec_dev_handle_t bsp_board_get_play_handle(void)
+{
+    return play_handle;
+}
+
+esp_codec_dev_handle_t bsp_board_get_record_handle(void)
+{
+    return record_handle;
+}

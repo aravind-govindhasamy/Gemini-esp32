@@ -25,11 +25,15 @@
 #include "file_iterator.h"
 #include "app_ui_ctrl.h"
 #include "wit.h"
+#include "app_tts.h"
 #include "app_wifi.h"
 #include "settings.h"
 #include "main.h"
 
 #define LISTEN_SPEAK_PANEL_DELAY_MS     2000
+#define DEBUG_SAVE_PCM                  1
+#define MAX_FILE_SIZE                   (1024 * 1024)
+#define FILE_SIZE                       (1024 * 1024)
 static const char *TAG = "app_audio";
 
 #if !CONFIG_BSP_BOARD_ESP32_S3_BOX_Lite
@@ -188,45 +192,40 @@ static esp_err_t audio_record_stop()
     esp_err_t ret = ESP_OK;
 #if DEBUG_SAVE_PCM
     record_flag = false;
-#if PCM_ONE_CHANNEL
-    record_total_len *= 1;
-#else
-    record_total_len *= 2;
-#endif
-    file_total_len += record_total_len;
-    ESP_LOGI(TAG, "### record Stop, %" PRIu32 " %" PRIu32 "K", \
-             record_total_len, \
-             record_total_len / 1024);
+    
+    // Convert sample count to byte count (16-bit mono)
+    uint32_t byte_len = record_total_len * sizeof(int16_t);
+    
+    ESP_LOGI(TAG, "### record Stop, %" PRIu32 " samples (%" PRIu32 " bytes)", \
+             record_total_len, byte_len);
 
-    FILE *fp = fopen("/spiffs/echo_en_wake.wav", "r");
-    ESP_GOTO_ON_FALSE(NULL != fp, ESP_FAIL, err, TAG, "Failed create record file");
-
+    // Initialize/Fix WAV header
     wav_header_t wav_head;
-    int len = fread(&wav_head, 1, sizeof(wav_header_t), fp);
-    ESP_GOTO_ON_FALSE(len > 0, ESP_FAIL, err, TAG, "Failed create record file");
-
+    memset(&wav_head, 0, sizeof(wav_header_t));
+    
+    memcpy(wav_head.ChunkID, "RIFF", 4);
+    wav_head.ChunkSize = byte_len + sizeof(wav_header_t) - 8;
+    memcpy(wav_head.Format, "WAVE", 4);
+    
+    memcpy(wav_head.Subchunk1ID, "fmt ", 4);
+    wav_head.Subchunk1Size = 16;
+    wav_head.AudioFormat = 1; // PCM
+    wav_head.NumChannels = 1; // MONO
     wav_head.SampleRate = 16000;
-#if PCM_ONE_CHANNEL
-    wav_head.NumChannels = 1;
-#else
-    wav_head.NumChannels = 2;
-#endif
     wav_head.BitsPerSample = 16;
-    wav_head.ChunkSize = file_total_len - 8;
-    wav_head.ByteRate = wav_head.SampleRate * wav_head.BitsPerSample * wav_head.NumChannels / 8;
-    wav_head.Subchunk2ID[0] = 'd';
-    wav_head.Subchunk2ID[1] = 'a';
-    wav_head.Subchunk2ID[2] = 't';
-    wav_head.Subchunk2ID[3] = 'a';
-    wav_head.Subchunk2Size = record_total_len;
+    wav_head.ByteRate = 16000 * 1 * 2;
+    wav_head.BlockAlign = 1 * 2;
+    
+    memcpy(wav_head.Subchunk2ID, "data", 4);
+    wav_head.Subchunk2Size = byte_len;
+    
     memcpy((void *)record_audio_buffer, &wav_head, sizeof(wav_header_t));
-    Cache_WriteBack_Addr((uint32_t)record_audio_buffer, record_total_len);
+    
+    // Update global length to byte count for the trigger
+    record_total_len = byte_len;
 
+    Cache_WriteBack_Addr((uint32_t)record_audio_buffer, record_total_len + sizeof(wav_header_t));
 #endif
-err:
-    if (fp) {
-        fclose(fp);
-    }
     return ret;
 }
 
@@ -317,27 +316,20 @@ void sr_handler_task(void *pvParam)
         }
 #endif
         if (ESP_MN_STATE_TIMEOUT == result.state) {
-            ESP_LOGI(TAG, "ESP_MN_STATE_TIMEOUT - Finalizing Live STT");
+            ESP_LOGI(TAG, "ESP_MN_STATE_TIMEOUT - Universal Triggering");
             audio_record_stop();
             
-            wit_nlu_result_t *nlu_res = wit_stt_stream_stop();
-            if (nlu_res) {
-                ESP_LOGI(TAG, "Streaming STT Finalized: %s", nlu_res->text ? nlu_res->text : "NULL");
-            }
-
             if (WIFI_STATUS_CONNECTED_OK == wifi_connected_already()) {
-                gemini_audio_bot_trigger(record_audio_buffer, record_total_len * sizeof(int16_t) + sizeof(wav_header_t), nlu_res);
+                gemini_audio_bot_trigger(record_audio_buffer, record_total_len + sizeof(wav_header_t), NULL);
             } else {
                 ui_ctrl_show_panel(UI_CTRL_PANEL_SLEEP, LISTEN_SPEAK_PANEL_DELAY_MS);
             }
-
-            if (nlu_res) wit_nlu_result_free(nlu_res);
             continue;
         }
 
         if (WAKENET_DETECTED == result.wakenet_mode) {
             audio_record_start();
-            wit_stt_stream_start(live_stt_callback);
+            // wit_stt_stream_start(live_stt_callback); // Removed Wit.ai
             ui_ctrl_guide_jump();
             ui_ctrl_show_panel(UI_CTRL_PANEL_LISTEN, 0);
             audio_play_task("/spiffs/echo_en_wake.wav");
@@ -357,8 +349,16 @@ void sr_handler_task(void *pvParam)
 
             audio_play_task("/spiffs/echo_en_ok.wav");
             if (WIFI_STATUS_CONNECTED_OK == wifi_connected_already()) {
-                // Even for commands, send audio to get personalized "Universal" response
-                gemini_audio_bot_trigger(record_audio_buffer, record_total_len * sizeof(int16_t) + sizeof(wav_header_t), NULL);
+                const char *prompt = "Hello";
+                switch (result.command_id) {
+                    case 1: prompt = "Tell me a joke"; break;
+                    case 2: prompt = "Sing a song"; break;
+                    case 3: prompt = "What is the alphabet"; break;
+                    case 4: prompt = "Who are you"; break;
+                    case 5: prompt = "I love you"; break;
+                    default: prompt = "Heard a command"; break;
+                }
+                gemini_speech_bot_trigger(prompt);
             }
             continue;
         }

@@ -74,9 +74,9 @@ static esp_err_t _http_event_handler(esp_http_client_event_t *evt) {
     return ESP_OK;
 }
 
-static wit_nlu_result_t* _parse_wit_response(const char *buf) {
+static nlu_result_t* _parse_wit_response(const char *buf) {
     if (!buf) return NULL;
-    wit_nlu_result_t *res = NULL;
+    nlu_result_t *res = NULL;
     char *ptr = (char*)buf;
     
     // Wit.ai sends multiple JSON objects back-to-back.
@@ -94,7 +94,7 @@ static wit_nlu_result_t* _parse_wit_response(const char *buf) {
             // We prioritize FINAL_UNDERSTANDING or FINAL_TRANSCRIPTION.
             // If we already have a final result, we only replace it if this one is also final or better.
             if (!res || is_final_msg || !res->is_final) {
-                if (!res) res = (wit_nlu_result_t*)calloc(1, sizeof(wit_nlu_result_t));
+                if (!res) res = (nlu_result_t*)calloc(1, sizeof(nlu_result_t));
                 
                 if (cJSON_IsString(text)) {
                     if (res->text) free(res->text);
@@ -122,7 +122,7 @@ static wit_nlu_result_t* _parse_wit_response(const char *buf) {
     return res;
 }
 
-wit_nlu_result_t* wit_stt_query(uint8_t *pcm_audio, size_t len) {
+nlu_result_t* wit_stt_query(uint8_t *pcm_audio, size_t len) {
     if (strlen(g_token) == 0 || !pcm_audio) {
         ESP_LOGE(TAG, "Wit token not set or no audio");
         return NULL;
@@ -151,7 +151,7 @@ wit_nlu_result_t* wit_stt_query(uint8_t *pcm_audio, size_t len) {
     ESP_LOGI(TAG, "Sending STT request...");
     esp_err_t err = esp_http_client_perform(client);
     
-    wit_nlu_result_t *res = NULL;
+    nlu_result_t *res = NULL;
     if (err == ESP_OK) {
         int status = esp_http_client_get_status_code(client);
         if (status == 200 && collector.buf) {
@@ -169,7 +169,7 @@ wit_nlu_result_t* wit_stt_query(uint8_t *pcm_audio, size_t len) {
     return res;
 }
 
-void wit_nlu_result_free(wit_nlu_result_t *res) {
+void wit_nlu_result_free(nlu_result_t *res) {
     if (res) {
         if (res->text) free(res->text);
         if (res->intent) free(res->intent);
@@ -326,7 +326,7 @@ esp_err_t wit_stt_stream_feed(uint8_t *pcm_audio, size_t len) {
     return ESP_OK;
 }
 
-wit_nlu_result_t* wit_stt_stream_stop(void) {
+nlu_result_t* wit_stt_stream_stop(void) {
     if (!g_stream_active) return NULL;
     
     // Signal task to stop reading and finish the request
@@ -338,7 +338,7 @@ wit_nlu_result_t* wit_stt_stream_stop(void) {
         vTaskDelay(pdMS_TO_TICKS(100));
     }
     
-    wit_nlu_result_t *res = NULL;
+    nlu_result_t *res = NULL;
     if (g_stream_collector.buf) {
         res = _parse_wit_response(g_stream_collector.buf);
         free(g_stream_collector.buf);

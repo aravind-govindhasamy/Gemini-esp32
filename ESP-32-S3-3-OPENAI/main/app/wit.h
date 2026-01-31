@@ -3,13 +3,7 @@
 #include "esp_err.h"
 #include "gemini.h" // reuse response struct
 
-typedef struct wit_nlu_result {
-    char *text;
-    char *intent;
-    float intent_conf;
-    bool is_final;
-    // Add entities/traits as needed in the future
-} wit_nlu_result_t;
+// wit_nlu_result_t is now nlu_result_t in gemini.h
 
 /**
  * @brief Initialize Wit.ai client
@@ -26,7 +20,7 @@ typedef void (*wit_stt_callback_t)(const char *text, bool is_final);
 /**
  * @brief Send audio to Wit.ai and get structured NLU result (Blocking/Legacy)
  */
-wit_nlu_result_t* wit_stt_query(uint8_t *pcm_audio, size_t len);
+nlu_result_t* wit_stt_query(uint8_t *pcm_audio, size_t len);
 
 /**
  * @brief Start a live STT stream
@@ -42,12 +36,12 @@ esp_err_t wit_stt_stream_feed(uint8_t *pcm_audio, size_t len);
 /**
  * @brief Stop the active stream and get final NLU result
  */
-wit_nlu_result_t* wit_stt_stream_stop(void);
+nlu_result_t* wit_stt_stream_stop(void);
 
 /**
  * @brief Free a Wit NLU result
  */
-void wit_nlu_result_free(wit_nlu_result_t *res);
+void wit_nlu_result_free(nlu_result_t *res);
 
 /**
  * @brief Generate speech using Wit.ai TTS

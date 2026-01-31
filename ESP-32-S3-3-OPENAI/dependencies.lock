@@ -198,6 +198,13 @@ dependencies:
     source:
       type: idf
     version: 5.1.6
+  jmattsson/picotts:
+    component_hash: b028bdbd5ef12c7fc20e2f54d534066462336608e8b19876088817e6fcc1f82c
+    dependencies: []
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 1.1.3
   lvgl/lvgl:
     component_hash: 948bff879a345149b83065535bbc4a026ce9f47498a22881e432a264b9098015
     dependencies: []
@@ -211,7 +218,8 @@ direct_dependencies:
 - espressif/button
 - espressif/esp-box-3
 - espressif/esp-sr
+- jmattsson/picotts
 - lvgl/lvgl
-manifest_hash: 2c2430ef8b2e61b5378b5b03f1f8ba8a7ea8f2c06c5e026f76f35076568e738e
+manifest_hash: 65196d64e9287bd0d9b11467454a9b9da250f6b14a8b1f47c8c4e074162371ad
 target: esp32s3
 version: 2.0.0

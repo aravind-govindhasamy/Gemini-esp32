@@ -316,7 +316,7 @@ static void reply_content_scroll_timer_handler()
             reply_audio_start = false;
             reply_audio_end = false;
             lv_timer_pause(scroll_timer_handle);
-            ui_ctrl_show_panel(UI_CTRL_PANEL_SLEEP, 1000);
+            ui_ctrl_show_panel(UI_CTRL_PANEL_SLEEP, 5000);
         }
     }
 }
