@@ -2,7 +2,16 @@ set(UI_DIR ./ui)
 file(GLOB_RECURSE UI_SRCS ${UI_DIR}/*.c)
 
 set(APP_DIR ./app)
-file(GLOB_RECURSE APP_SRCS ${APP_DIR}/*.c)
+set(APP_SRCS 
+    ${APP_DIR}/app_audio.c
+    ${APP_DIR}/app_sr.c
+    ${APP_DIR}/app_ui_ctrl.c
+    ${APP_DIR}/app_ui_events.c
+    ${APP_DIR}/app_wifi.c
+    ${APP_DIR}/bsp_board.c
+    ${APP_DIR}/gemini.c
+    ${APP_DIR}/wit.c
+)
 
 set(SETTINGS_DIR ./settings)
 file(GLOB_RECURSE SETTINGS_SRCS ${SETTINGS_DIR}/*.c)

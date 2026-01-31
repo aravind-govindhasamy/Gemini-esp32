@@ -16,6 +16,7 @@ typedef struct {
     char ssid[SSID_SIZE];             /* SSID of target AP. */
     char password[PASSWORD_SIZE];     /* Password of target AP. */
     char gemini_key[KEY_SIZE];        /* Gemini key. */
+    char wit_token[KEY_SIZE];         /* Wit.ai token. */
     char user_name[32];               /* User's name */
     int user_age;                     /* User's age */
 } sys_param_t;

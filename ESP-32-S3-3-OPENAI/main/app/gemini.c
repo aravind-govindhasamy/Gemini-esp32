@@ -48,7 +48,6 @@ static gemini_response_t* gemini_query_interactions(cJSON *contents_item) {
 
     cJSON *modalities = cJSON_AddArrayToObject(root, "response_modalities");
     cJSON_AddItemToArray(modalities, cJSON_CreateString("text"));
-    cJSON_AddItemToArray(modalities, cJSON_CreateString("audio"));
 
     char *post_data = cJSON_PrintUnformatted(root);
     cJSON_Delete(root);
@@ -99,16 +98,21 @@ static gemini_response_t* gemini_query_interactions(cJSON *contents_item) {
                                     if (cJSON_IsString(text)) res->text = strdup(text->valuestring);
                                 } else if (strcmp(type->valuestring, "audio") == 0) {
                                     cJSON *audio_field = cJSON_GetObjectItem(output, "audio");
+                                    if (!audio_field) audio_field = cJSON_GetObjectItem(output, "data");
+                                    if (!audio_field) audio_field = cJSON_GetObjectItem(output, "content");
+                                    
                                     if (audio_field && cJSON_IsString(audio_field)) {
                                         size_t b64_len = strlen(audio_field->valuestring);
-                                        res->audio = malloc(b64_len);
+                                        res->audio = (uint8_t*)malloc(b64_len);
                                         mbedtls_base64_decode(res->audio, b64_len, &res->audio_len, (uint8_t*)audio_field->valuestring, b64_len);
+                                        ESP_LOGI(TAG, "Decoded audio from string field (%zu bytes)", res->audio_len);
                                     } else if (audio_field && cJSON_IsObject(audio_field)) {
                                         cJSON *b64_data = cJSON_GetObjectItem(audio_field, "data");
                                         if (cJSON_IsString(b64_data)) {
                                             size_t b64_len = strlen(b64_data->valuestring);
-                                            res->audio = malloc(b64_len);
+                                            res->audio = (uint8_t*)malloc(b64_len);
                                             mbedtls_base64_decode(res->audio, b64_len, &res->audio_len, (uint8_t*)b64_data->valuestring, b64_len);
+                                            ESP_LOGI(TAG, "Decoded audio from object.data field (%zu bytes)", res->audio_len);
                                         }
                                     }
                                 }
@@ -129,7 +133,11 @@ static gemini_response_t* gemini_query_interactions(cJSON *contents_item) {
 }
 
 gemini_response_t* gemini_text_query(const char *text, const char *name, int age) {
-    ESP_LOGI(TAG, "Querying Gemini (gemini-1.5-flash)...");
+    if (!text || strlen(text) == 0) {
+        ESP_LOGW(TAG, "Empty text query, skipping Gemini call.");
+        return NULL;
+    }
+    ESP_LOGI(TAG, "Querying Brain (Gemini 3 Flash Preview)...");
     cJSON *content = cJSON_CreateArray();
     cJSON *part_sys = cJSON_CreateObject();
     cJSON_AddStringToObject(part_sys, "type", "text");
@@ -151,88 +159,3 @@ gemini_response_t* gemini_text_query(const char *text, const char *name, int age
     return gemini_query_interactions(content);
 }
 
-char* gemini_stt_query(uint8_t *audio, size_t len) {
-    if (!audio || len == 0) return NULL;
-    ESP_LOGI(TAG, "Transcribing AUDIO (%zu bytes)...", len);
-
-    cJSON *root = cJSON_CreateObject();
-    cJSON *contents = cJSON_AddArrayToObject(root, "contents");
-    cJSON *content = cJSON_CreateObject();
-    cJSON_AddStringToObject(content, "role", "user");
-    cJSON *parts = cJSON_AddArrayToObject(content, "parts");
-    
-    // Prompt Part
-    cJSON *part_text = cJSON_CreateObject();
-    cJSON_AddStringToObject(part_text, "text", "Please transcribe this audio accurately. Only return the transcribed text, nothing else.");
-    cJSON_AddItemToArray(parts, part_text);
-
-    // Audio Part
-    cJSON *part_audio = cJSON_CreateObject();
-    cJSON *inline_data = cJSON_AddObjectToObject(part_audio, "inlineData");
-    cJSON_AddStringToObject(inline_data, "mimeType", "audio/wav");
-    
-    size_t b64_len = (len + 2) / 3 * 4 + 1;
-    char *b64_data = malloc(b64_len);
-    size_t out_len = 0;
-    mbedtls_base64_encode((unsigned char*)b64_data, b64_len, &out_len, audio, len);
-    cJSON_AddStringToObject(inline_data, "data", b64_data);
-    free(b64_data);
-    cJSON_AddItemToArray(parts, part_audio);
-    
-    cJSON_AddItemToArray(contents, content);
-
-    char *post_data = cJSON_PrintUnformatted(root);
-    cJSON_Delete(root);
-
-    char url[256];
-    snprintf(url, sizeof(url), "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=%s", g_api_key);
-
-    esp_http_client_config_t config = {
-        .url = url,
-        .method = HTTP_METHOD_POST,
-        .crt_bundle_attach = esp_crt_bundle_attach,
-        .timeout_ms = 15000,
-    };
-    esp_http_client_handle_t client = esp_http_client_init(&config);
-    esp_http_client_set_post_field(client, post_data, strlen(post_data));
-    esp_http_client_set_header(client, "Content-Type", "application/json");
-
-    char *transcription = NULL;
-    if (esp_http_client_perform(client) == ESP_OK) {
-        int status_code = esp_http_client_get_status_code(client);
-        if (status_code == 200) {
-            int content_len = esp_http_client_get_content_length(client);
-            char *resp_buf = malloc(content_len + 1);
-            esp_http_client_read_response_data(client, resp_buf, content_len);
-            resp_buf[content_len] = '\0';
-            
-            cJSON *resp_root = cJSON_Parse(resp_buf);
-            if (resp_root) {
-                cJSON *candidates = cJSON_GetObjectItem(resp_root, "candidates");
-                if (cJSON_IsArray(candidates)) {
-                    cJSON *candidate = cJSON_GetArrayItem(candidates, 0);
-                    cJSON *content_obj = cJSON_GetObjectItem(candidate, "content");
-                    cJSON *parts_obj = cJSON_GetObjectItem(content_obj, "parts");
-                    if (cJSON_IsArray(parts_obj)) {
-                        cJSON *part_obj = cJSON_GetArrayItem(parts_obj, 0);
-                        cJSON *text_obj = cJSON_GetObjectItem(part_obj, "text");
-                        if (cJSON_IsString(text_obj)) transcription = strdup(text_obj->valuestring);
-                    }
-                }
-                cJSON_Delete(resp_root);
-            }
-            free(resp_buf);
-        } else {
-            ESP_LOGE(TAG, "STT Failed: %d", status_code);
-        }
-    }
-    
-    esp_http_client_cleanup(client);
-    free(post_data);
-    return transcription;
-}
-
-gemini_response_t* gemini_audio_query(uint8_t *audio, size_t len, const char *name, int age) {
-    // This is now effectively legacy as main.c will use the two-step flow
-    return NULL;
-}

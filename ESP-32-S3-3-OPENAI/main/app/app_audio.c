@@ -24,6 +24,7 @@
 #include "audio_player.h"
 #include "file_iterator.h"
 #include "app_ui_ctrl.h"
+#include "wit.h"
 #include "app_wifi.h"
 #include "settings.h"
 #include "main.h"
@@ -143,6 +144,9 @@ void audio_record_save(int16_t *audio_buffer, int audio_chunksize)
 {
 #if DEBUG_SAVE_PCM
     if (record_flag) {
+        // Feed live STT stream if active
+        wit_stt_stream_feed((uint8_t*)audio_buffer, audio_chunksize * sizeof(int16_t));
+
         uint16_t *record_buff = (uint16_t *)(record_audio_buffer + sizeof(wav_header_t));
         record_buff += record_total_len;
         for (int i = 0; i < (audio_chunksize - 1); i++) {
@@ -312,19 +316,27 @@ void sr_handler_task(void *pvParam)
         }
 #endif
         if (ESP_MN_STATE_TIMEOUT == result.state) {
-            ESP_LOGI(TAG, "ESP_MN_STATE_TIMEOUT - Processing Universal Voice");
+            ESP_LOGI(TAG, "ESP_MN_STATE_TIMEOUT - Finalizing Live STT");
             audio_record_stop();
+            
+            wit_nlu_result_t *nlu_res = wit_stt_stream_stop();
+            if (nlu_res) {
+                ESP_LOGI(TAG, "Streaming STT Finalized: %s", nlu_res->text ? nlu_res->text : "NULL");
+            }
+
             if (WIFI_STATUS_CONNECTED_OK == wifi_connected_already()) {
-                // Send the captured raw audio to Gemini for "Whatever I say" response
-                gemini_audio_bot_trigger(record_audio_buffer, record_total_len + sizeof(wav_header_t));
+                gemini_audio_bot_trigger(record_audio_buffer, record_total_len + sizeof(wav_header_t), nlu_res);
             } else {
                 ui_ctrl_show_panel(UI_CTRL_PANEL_SLEEP, LISTEN_SPEAK_PANEL_DELAY_MS);
             }
+
+            if (nlu_res) wit_nlu_result_free(nlu_res);
             continue;
         }
 
         if (WAKENET_DETECTED == result.wakenet_mode) {
             audio_record_start();
+            wit_stt_stream_start(live_stt_callback);
             ui_ctrl_guide_jump();
             ui_ctrl_show_panel(UI_CTRL_PANEL_LISTEN, 0);
             audio_play_task("/spiffs/echo_en_wake.wav");
@@ -345,7 +357,7 @@ void sr_handler_task(void *pvParam)
             audio_play_task("/spiffs/echo_en_ok.wav");
             if (WIFI_STATUS_CONNECTED_OK == wifi_connected_already()) {
                 // Even for commands, send audio to get personalized "Universal" response
-                gemini_audio_bot_trigger(record_audio_buffer, record_total_len + sizeof(wav_header_t));
+                gemini_audio_bot_trigger(record_audio_buffer, record_total_len + sizeof(wav_header_t), NULL);
             }
             continue;
         }
