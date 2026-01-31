@@ -85,13 +85,11 @@ esp_err_t gemini_speech_bot_trigger(const char *prompt)
                     vTaskDelay(pdMS_TO_TICKS(100));
                 }
                 ui_ctrl_reply_set_audio_end_flag(true);
+                ui_ctrl_show_panel(UI_CTRL_PANEL_SLEEP, LISTEN_SPEAK_PANEL_DELAY_MS);
             }
         }
         gemini_response_free(voice_response);
     }
-
-    // STICKY UI: Do NOT transition to sleep automatically!
-    // The screen will now stay on UI_CTRL_PANEL_REPLY until touched or "Close" is said.
 
 err:
     if (response) gemini_response_free(response);
@@ -138,9 +136,6 @@ esp_err_t gemini_audio_bot_trigger(uint8_t *audio, size_t len, wit_nlu_result_t 
     if (NULL == nlu_res || !nlu_res->is_final) {
         if (nlu_res) {
             ESP_LOGI(TAG, "Streaming result incomplete, falling back to full cloud STT");
-            // Note: we don't free nlu_res yet if it came from pre_nlu_res, 
-            // but in that case trigger() wasn't responsible for it. 
-            // Actually, we should probably free it if we're replacing it.
             if (pre_nlu_res) wit_nlu_result_free(pre_nlu_res);
             nlu_res = NULL;
             pre_nlu_res = NULL; // Mark that we're now owning the new result
@@ -261,6 +256,7 @@ esp_err_t gemini_audio_bot_trigger(uint8_t *audio, size_t len, wit_nlu_result_t 
                     vTaskDelay(pdMS_TO_TICKS(100));
                 }
                 ui_ctrl_reply_set_audio_end_flag(true);
+                ui_ctrl_show_panel(UI_CTRL_PANEL_SLEEP, LISTEN_SPEAK_PANEL_DELAY_MS);
             }
         }
         gemini_response_free(voice_res);
