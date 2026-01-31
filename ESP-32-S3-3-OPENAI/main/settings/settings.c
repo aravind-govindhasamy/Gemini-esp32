@@ -16,6 +16,7 @@
 #include "settings.h"
 #include "esp_ota_ops.h"
 
+esp_err_t settings_write_parameter_to_nvs(void);
 static const char *TAG = "settings";
 const char *uf2_nvs_partition = "nvs";
 const char *uf2_nvs_namespace = "configuration";
@@ -33,64 +34,91 @@ esp_err_t settings_factory_reset(void)
 
 esp_err_t settings_read_parameter_from_nvs(void)
 {
+    // Initialize with empty strings
+    memset(&g_sys_param, 0, sizeof(sys_param_t));
+
+    /* --- LOCAL CREDENTIALS OVERRIDE --- */
+    /* You can hardcode your credentials here if NVS is not working */
+    strncpy(g_sys_param.ssid, "", SSID_SIZE);
+    strncpy(g_sys_param.password, "", PASSWORD_SIZE);
+    strncpy(g_sys_param.gemini_key, "", KEY_SIZE);
+    strncpy(g_sys_param.wit_token, "", KEY_SIZE);
+    strncpy(g_sys_param.user_name, "Friend", 32);
+    g_sys_param.user_age = 7;
+    /* ---------------------------------- */
+
     esp_err_t ret = nvs_open_from_partition(uf2_nvs_partition, uf2_nvs_namespace, NVS_READONLY, &my_handle);
     if (ESP_ERR_NVS_NOT_FOUND == ret) {
-        ESP_LOGI(TAG, "Credentials not found");
-        goto err;
+        ESP_LOGW(TAG, "NVS Partition not found, using local/empty parameters");
+        return ESP_OK; 
     }
 
-    ESP_GOTO_ON_FALSE(ESP_OK == ret, ret, err, TAG, "nvs open failed (0x%x)", ret);
+    if (ret != ESP_OK) {
+        ESP_LOGW(TAG, "nvs open failed (0x%x)", ret);
+        return ESP_OK;
+    }
+
     size_t len = 0;
 
     // Read SSID
     len = sizeof(g_sys_param.ssid);
-    ret = nvs_get_str(my_handle, "ssid", g_sys_param.ssid, &len);
-    if (ret != ESP_OK || len == 0) {
-        ESP_LOGI(TAG, "No SSID found");
-        goto err;
+    if (nvs_get_str(my_handle, "ssid", g_sys_param.ssid, &len) != ESP_OK) {
+        ESP_LOGW(TAG, "No SSID in NVS");
     }
 
     // Read password
     len = sizeof(g_sys_param.password);
-    ret = nvs_get_str(my_handle, "password", g_sys_param.password, &len);
-    if (ret != ESP_OK || len == 0) {
-        ESP_LOGI(TAG, "No Password found");
-        goto err;
+    if (nvs_get_str(my_handle, "password", g_sys_param.password, &len) != ESP_OK) {
+        ESP_LOGW(TAG, "No Password in NVS");
     }
 
-    // Read key
-    len = sizeof(g_sys_param.key);
-    ret = nvs_get_str(my_handle, "ChatGPT_key", g_sys_param.key, &len);
-    if (ret != ESP_OK || len == 0) {
-        ESP_LOGI(TAG, "No OpenAI key found");
-        goto err;
+    // Read Gemini key
+    len = sizeof(g_sys_param.gemini_key);
+    if (nvs_get_str(my_handle, "Gemini_key", g_sys_param.gemini_key, &len) != ESP_OK) {
+        ESP_LOGW(TAG, "No Gemini key in NVS");
     }
 
-    // Read url
-    len = sizeof(g_sys_param.url);
-    ret = nvs_get_str(my_handle, "Base_url", g_sys_param.url, &len);
-    if (ret != ESP_OK || len == 0) {
-        ESP_LOGI(TAG, "No OpenAI Base url found");
-        goto err;
+    // Read Wit token
+    len = sizeof(g_sys_param.wit_token);
+    if (nvs_get_str(my_handle, "wit_token", g_sys_param.wit_token, &len) != ESP_OK) {
+        ESP_LOGW(TAG, "No Wit token in NVS");
+    }
+
+    // Read User Name
+    len = sizeof(g_sys_param.user_name);
+    if (nvs_get_str(my_handle, "user_name", g_sys_param.user_name, &len) != ESP_OK) {
+        ESP_LOGW(TAG, "No User Name in NVS");
+    }
+
+    // Read User Age
+    if (nvs_get_i32(my_handle, "user_age", &g_sys_param.user_age) != ESP_OK) {
+        ESP_LOGW(TAG, "No User Age in NVS");
     }
 
     nvs_close(my_handle);
 
     ESP_LOGI(TAG, "stored ssid:%s", g_sys_param.ssid);
-    ESP_LOGI(TAG, "stored password:%s", g_sys_param.password);
-    ESP_LOGI(TAG, "stored OpenAI:%s", g_sys_param.key);
-    ESP_LOGI(TAG, "stored Base URL:%s", g_sys_param.url);
     return ESP_OK;
-
-err:
-    if (my_handle) {
-        nvs_close(my_handle);
-    }
-    settings_factory_reset();
-    return ret;
 }
 
 sys_param_t *settings_get_parameter(void)
 {
     return &g_sys_param;
+}
+
+esp_err_t settings_write_parameter_to_nvs(void)
+{
+    esp_err_t ret = nvs_open_from_partition(uf2_nvs_partition, uf2_nvs_namespace, NVS_READWRITE, &my_handle);
+    if (ret != ESP_OK) {
+        ESP_LOGW(TAG, "nvs open failed (0x%x)", ret);
+        return ESP_FAIL;
+    }
+
+    nvs_set_str(my_handle, "user_name", g_sys_param.user_name);
+    nvs_set_str(my_handle, "wit_token", g_sys_param.wit_token);
+    nvs_set_i32(my_handle, "user_age", g_sys_param.user_age);
+    
+    ret = nvs_commit(my_handle);
+    nvs_close(my_handle);
+    return ret;
 }

@@ -148,21 +148,16 @@ void audio_record_save(int16_t *audio_buffer, int audio_chunksize)
         uint16_t *feed_start = record_buff + record_total_len;
         size_t start_len = record_total_len;
 
-        record_buff += record_total_len;
+        // Force MONO recording (take only channel 0)
+        // input is 3 interleaved (Ref, Mic1, Mic2), we take Ref/Proc channel
         for (int i = 0; i < (audio_chunksize - 1); i++) {
             if (record_total_len < (MAX_FILE_SIZE - sizeof(wav_header_t)) / 2) {
-#if PCM_ONE_CHANNEL
-                record_buff[ i * 1 + 0] = audio_buffer[i * 3 + 0];
+                record_buff[record_total_len] = audio_buffer[i * 3 + 0];
                 record_total_len += 1;
-#else
-                record_buff[ i * 2 + 0] = audio_buffer[i * 3 + 0];
-                record_buff[ i * 2 + 1] = audio_buffer[i * 3 + 1];
-                record_total_len += 2;
-#endif
             }
         }
         
-        // Feed the NEWLY added clean PCM data to STT
+        // Feed the NEWLY added MONO clean PCM data to STT
         size_t added_samples = record_total_len - start_len;
         if (added_samples > 0) {
             wit_stt_stream_feed((uint8_t*)feed_start, added_samples * sizeof(int16_t));

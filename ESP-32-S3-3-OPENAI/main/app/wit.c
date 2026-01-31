@@ -184,8 +184,8 @@ static void _stt_stream_task(void *pv) {
         .url = "https://api.wit.ai/speech?v=20260131",
         .method = HTTP_METHOD_POST,
         .crt_bundle_attach = esp_crt_bundle_attach,
-        .timeout_ms = 60000,
-        .buffer_size = 4096,
+        .timeout_ms = 15000,
+        .buffer_size = 10240,
         .event_handler = _http_event_handler,
         .user_data = &g_stream_collector,
     };
@@ -210,25 +210,47 @@ static void _stt_stream_task(void *pv) {
     }
 
     g_stream_ready = true;
+    bool headers_fetched = false;
     
     while (g_stream_active) {
         size_t item_size;
-        uint8_t *item = xRingbufferReceiveUpTo(g_stream_rb, &item_size, pdMS_TO_TICKS(100), 1024);
+        uint8_t *item = xRingbufferReceiveUpTo(g_stream_rb, &item_size, headers_fetched ? 0 : pdMS_TO_TICKS(100), 1024);
         if (item) {
             int written = esp_http_client_write(g_stream_client, (const char*)item, (int)item_size);
-            vRingbufferReturnItem(g_stream_rb, item);
             if (written < 0) {
                 ESP_LOGE(TAG, "Stream write failed");
                 break;
             }
+            vRingbufferReturnItem(g_stream_rb, item);
+            
+            // Try to get headers if not already done. Wit.ai streams responses.
+            if (!headers_fetched) {
+               if (esp_http_client_fetch_headers(g_stream_client) >= 0) {
+                   headers_fetched = true;
+                   ESP_LOGI(TAG, "STT Stream Headers Received");
+                   // Small timeout for live reads
+                   esp_http_client_set_timeout_ms(g_stream_client, 200);
+               }
+            }
         }
-        // Periodically poll for response data (WIT returns text as we speak)
-        esp_http_client_fetch_headers(g_stream_client);
+        
+        if (headers_fetched) {
+            char read_buf[256];
+            // Non-blocking read (triggers event handler)
+            esp_http_client_read(g_stream_client, read_buf, sizeof(read_buf));
+        }
+
+        if (!item) vTaskDelay(pdMS_TO_TICKS(10));
     }
     
     // Send final zero-length chunk to close the request
     esp_http_client_write(g_stream_client, NULL, 0);
-    esp_http_client_fetch_headers(g_stream_client);
+    if (!headers_fetched) esp_http_client_fetch_headers(g_stream_client);
+    
+    // Final read flush
+    esp_http_client_set_timeout_ms(g_stream_client, 1000);
+    char final_buf[512];
+    while(esp_http_client_read(g_stream_client, final_buf, sizeof(final_buf)) > 0);
 
     ESP_LOGI(TAG, "STT Stream Task Finishing");
     g_stream_ready = false;
