@@ -3,7 +3,9 @@
 // LVGL version: 8.3.4
 // Project name: chat_gpt
 
+#include "../../app/app_sntp.h"
 #include "../ui.h"
+
 
 lv_obj_t *ui_LabelTime;
 lv_obj_t *ui_LabelDate;

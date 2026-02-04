@@ -279,19 +279,7 @@ void ui_event_PanelSleep(lv_event_t *e) {
   }
 }
 
-void ui_event_ImageListenSettings(lv_event_t *e) {
-  lv_event_code_t event_code = lv_event_get_code(e);
-
-  if (event_code == LV_EVENT_CLICKED) {
-    _ui_screen_change(ui_ScreenSettings, LV_SCR_LOAD_ANIM_NONE, 0, 0);
-    if (ui_get_btn_op_group()) {
-      lv_group_remove_all_objs(ui_get_btn_op_group());
-      lv_group_add_obj(ui_get_btn_op_group(), ui_ImageSettingsBack);
-      lv_group_add_obj(ui_get_btn_op_group(), ui_ImageSettingsReset);
-      check = 0;
-    }
-  }
-}
+// ui_event_ImageListenSettings moved to ui_ScreenStatus.c
 /*This function is for Server selection currently not using*/
 void ui_event_DropdownSettingsRegion(lv_event_t *e) {
   lv_event_code_t event_code = lv_event_get_code(e);
