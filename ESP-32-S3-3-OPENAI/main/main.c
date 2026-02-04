@@ -6,7 +6,6 @@
 #include <sys/time.h>
 #include <time.h>
 
-
 #include "esp_check.h"
 #include "esp_log.h"
 #include "esp_system.h"
@@ -16,13 +15,12 @@
 #include "nvs_flash.h"
 #include "sdkconfig.h"
 
-
 #ifndef CHATGPT_DEMO_VERSION_MAJOR
 #define CHATGPT_DEMO_VERSION_MAJOR 1
 #endif
 
 #include "app_audio.h"
-#include "app_httpd.h"
+#include "app_http_client.h"
 #include "app_sensor.h"
 #include "app_sntp.h"
 #include "app_sr.h"
@@ -143,10 +141,10 @@ void app_main() {
   ui_ctrl_init();
   app_network_start();
 
-  // Init Sensors, Time, and HTTP Server
+  // Init Sensors, Time, and HTTP Client (Push data to Hub)
   app_sensor_init();
   app_sntp_init();
-  app_httpd_init();
+  app_http_client_start();
 
   ESP_LOGI(TAG, "User Persona: %s, Age: %d", sys_param->user_name,
            (int)sys_param->user_age);

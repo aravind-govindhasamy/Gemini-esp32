@@ -25,3 +25,4 @@ Thumbs.db
 /arduino_user/libraries
 /esp32_GeminiBot/libraries
 /ESP-32-S3-3-OPENAI/.cache
+ESP-32-S3-3-OPENAI/dashboard/.env

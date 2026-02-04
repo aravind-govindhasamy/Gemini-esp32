@@ -20,9 +20,8 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# --- SESSION STATE ---
-if "esp32_ip" not in st.session_state:
-    st.session_state.esp32_ip = os.getenv("ESP32_IP", "192.168.32.2")
+if "hub_ip" not in st.session_state:
+    st.session_state.hub_ip = os.getenv("HUB_IP", "localhost")
 if "log_messages" not in st.session_state:
     st.session_state.log_messages = deque(maxlen=100)
 if "last_sensors" not in st.session_state:
@@ -34,7 +33,8 @@ if "chat_history" not in st.session_state:
 if "autoplay" not in st.session_state:
     st.session_state.autoplay = True
 
-API_BASE = f"http://{st.session_state.esp32_ip}"
+# Hub points to the local FastAPI server
+API_BASE = f"http://localhost:8000"
 
 # --- LOG SYSTEM ---
 def log(msg, level="INFO"):
@@ -43,15 +43,31 @@ def log(msg, level="INFO"):
 
 # --- GEMINI DIRECT QUERY ---
 def query_gemini(prompt, api_key):
-    """Direct Gemini API query from Streamlit"""
+    """Direct Gemini API query from Streamlit using modern google-genai SDK"""
     try:
-        import google.generativeai as genai
-        genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-3-flash-preview')
-        response = model.generate_content(prompt)
+        from google import genai
+        client = genai.Client(api_key=api_key)
+        response = client.models.generate_content(
+            model='gemini-2.0-flash-exp', # Default to solid 2.0 or user choice
+            contents=prompt
+        )
+        # Note: If user insisted on gemini-3-flash-preview, we can try it, 
+        # but 2.0-flash-exp is the current standard high-speed model.
+        # Let's use the one requested in the curl:
+        try:
+            response = client.models.generate_content(
+                model='gemini-3-flash-preview', 
+                contents=prompt
+            )
+        except:
+            # Fallback to 2.0 if 3-preview is not available for this key
+            response = client.models.generate_content(
+                model='gemini-2.0-flash-exp', 
+                contents=prompt
+            )
         return response.text
     except ImportError:
-        log("google-generativeai not installed. Run: pip install google-generativeai", "ERROR")
+        log("google-genai not installed. Run: pip install google-genai", "ERROR")
         return "Error: Gemini SDK not installed"
     except Exception as e:
         log(f"Gemini error: {e}", "ERROR")
@@ -61,9 +77,13 @@ def query_gemini(prompt, api_key):
 def text_to_speech(text):
     """Convert text to speech and return base64 audio"""
     try:
+        if not os.path.exists("recordings"):
+            os.makedirs("recordings")
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = os.path.join("recordings", f"response_{timestamp}.mp3")
         tts = gTTS(text=text, lang='en')
-        tts.save("response.mp3")
-        with open("response.mp3", "rb") as f:
+        tts.save(filename)
+        with open(filename, "rb") as f:
             audio_bytes = f.read()
             bin_str = base64.b64encode(audio_bytes).decode()
         return bin_str
@@ -184,28 +204,28 @@ def post(endpoint, data=None):
 
 # --- SIDEBAR ---
 with st.sidebar:
-    st.markdown("### 📡 Device Connection")
+    st.markdown("### 🖥️ Hub Configuration")
     
     # Reload from .env button
-    if st.button("📁 Load from .env", use_container_width=True):
+    if st.button("📁 Load Config from .env", use_container_width=True):
         load_dotenv(override=True)
-        st.session_state.esp32_ip = os.getenv("ESP32_IP", st.session_state.esp32_ip)
+        st.session_state.hub_ip = os.getenv("HUB_IP", st.session_state.hub_ip)
         st.session_state.gemini_key = os.getenv("GEMINI_API_KEY", st.session_state.gemini_key)
         st.rerun()
 
-    new_ip = st.text_input("ESP32 IP Address", st.session_state.esp32_ip)
-    if new_ip != st.session_state.esp32_ip:
-        st.session_state.esp32_ip = new_ip
-        set_key(env_path, "ESP32_IP", new_ip)
-        st.toast("📡 IP saved to .env")
+    hub_ip = st.text_input("My Laptop IP (HUB_IP)", st.session_state.hub_ip, help="Find this with 'ipconfig' in your terminal")
+    if hub_ip != st.session_state.hub_ip:
+        st.session_state.hub_ip = hub_ip
+        set_key(env_path, "HUB_IP", hub_ip)
+        st.toast("🖥️ Hub IP saved to .env")
     
-    if st.button("🔄 Test Connection", use_container_width=True):
-        log(f"Testing connection to {st.session_state.esp32_ip}...")
+    if st.button("🔄 Test Hub Connection", use_container_width=True):
+        log(f"Testing connection to local Hub...")
         result = fetch("status")
         if result:
-            st.success("✅ Connected!")
+            st.success("✅ Hub is Online!")
         else:
-            st.error(f"❌ Cannot connect to {st.session_state.esp32_ip}")
+            st.error(f"❌ Cannot connect to local server (server.py)")
     
     online = fetch("status") is not None
     if online:
@@ -437,7 +457,7 @@ st.markdown(f"""
         Built with ❤️ by Circuit Digest • Powered by Google Gemini AI
     </p>
     <p style="font-size: 0.8rem; color: #555;">
-        Last updated: {datetime.now().strftime('%H:%M:%S')} • Device: {st.session_state.esp32_ip}
+        Last updated: {datetime.now().strftime('%H:%M:%S')} • Hub: {st.session_state.hub_ip}
     </p>
 </div>
 """, unsafe_allow_html=True)

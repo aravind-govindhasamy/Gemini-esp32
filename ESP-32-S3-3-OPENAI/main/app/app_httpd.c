@@ -147,12 +147,16 @@ static esp_err_t cors_handler(httpd_req_t *req) {
 
 esp_err_t app_httpd_init(void) {
   ESP_LOGI(TAG, "Starting HTTP server on port 80...");
+  // 2. I2C Bus check
+  // bsp_i2c_init() is already called in main.c, so the driver is installed.
+  // We just need to ensure the pins 8/18 are used.
+  ESP_LOGI(TAG, "Sensors using I2C_NUM_0 (Pins 8/18)");
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
   config.max_uri_handlers = 16;
-  config.stack_size = 10240;      // Increase stack for security/SSL if needed
-  config.task_priority = 10;      // Higher priority than SR for now
-  config.lru_purge_enable = true; // Clear old connections
-  config.max_open_sockets = 10;
+  config.stack_size = 8192; // Enough for JSON/CORS
+  config.task_priority = 5;
+  config.lru_purge_enable = true;
+  config.max_open_sockets = 4; // LWIP limit is low on ESP-BOX-3
 
   if (httpd_start(&server, &config) != ESP_OK) {
     ESP_LOGE(TAG, "Failed to start HTTP server!");
