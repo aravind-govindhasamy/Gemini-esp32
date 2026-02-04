@@ -43,7 +43,6 @@ idf_component_register(
         app_update
         spiffs
         vfs
-        vfs
         esp_codec_dev
         jmattsson__picotts
 )

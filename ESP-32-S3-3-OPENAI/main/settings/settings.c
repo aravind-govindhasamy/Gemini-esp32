@@ -39,12 +39,12 @@ esp_err_t settings_read_parameter_from_nvs(void)
 
     /* --- LOCAL CREDENTIALS OVERRIDE --- */
     /* You can hardcode your credentials here if NVS is not working */
-    strncpy(g_sys_param.ssid, "", SSID_SIZE);
-    strncpy(g_sys_param.password, "", PASSWORD_SIZE);
-    strncpy(g_sys_param.gemini_key, "", KEY_SIZE);
+    strncpy(g_sys_param.ssid, "BUDE-ESP-32", SSID_SIZE);
+    strncpy(g_sys_param.password, "Pass###1234", PASSWORD_SIZE);
+    strncpy(g_sys_param.gemini_key, "AIzaSyDbcsKOqM7Tley4WsVMn-najFIFcetOOtg", KEY_SIZE);
     strncpy(g_sys_param.wit_token, "", KEY_SIZE);
-    strncpy(g_sys_param.user_name, "Friend", 32);
-    g_sys_param.user_age = 7;
+    strncpy(g_sys_param.user_name, "Aravind", 32);
+    g_sys_param.user_age = 25;
     /* ---------------------------------- */
 
     esp_err_t ret = nvs_open_from_partition(uf2_nvs_partition, uf2_nvs_namespace, NVS_READONLY, &my_handle);

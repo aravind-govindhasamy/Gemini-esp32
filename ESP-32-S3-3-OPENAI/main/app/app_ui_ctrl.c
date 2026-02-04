@@ -5,23 +5,25 @@
  */
 
 #include "esp_log.h"
+#include <stdio.h>
 
+
+#include "app_sensor.h"
+#include "app_sntp.h"
 #include "app_ui_ctrl.h"
 #include "app_wifi.h"
-#include "app_sntp.h"
-#include "app_sensor.h"
 #include "bsp/esp-bsp.h"
 
-#include "ui_helpers.h"
 #include "ui.h"
+#include "ui_helpers.h"
 
-#define LABEL_WIFI_TEXT                 "Connecting to Wi-Fi\n"
-#define LABEL_NOT_WIFI_TEXT             "Not Connected to Wi-Fi\n"
-#define LABEL_WIFI_DOT_COUNT_MAX        (10)
-#define WIFI_CHECK_TIMER_INTERVAL_S     (1)
-#define CLOCK_UPDATE_TIMER_INTERVAL_MS  (1000)
-#define REPLY_SCROLL_TIMER_INTERVAL_MS  (1000)
-#define REPLY_SCROLL_SPEED              (1)
+#define LABEL_WIFI_TEXT "Connecting to Wi-Fi\n"
+#define LABEL_NOT_WIFI_TEXT "Not Connected to Wi-Fi\n"
+#define LABEL_WIFI_DOT_COUNT_MAX (10)
+#define WIFI_CHECK_TIMER_INTERVAL_S (1)
+#define CLOCK_UPDATE_TIMER_INTERVAL_MS (1000)
+#define REPLY_SCROLL_TIMER_INTERVAL_MS (1000)
+#define REPLY_SCROLL_SPEED (1)
 
 static char *TAG = "ui_ctrl";
 
@@ -35,336 +37,357 @@ static uint16_t content_height = 0;
 static void reply_content_scroll_timer_handler();
 static void wifi_check_timer_handler(lv_timer_t *timer);
 
-static void clock_update_timer_handler(lv_timer_t *timer)
-{
-    char time_str[16];
-    char date_str[32];
-    
-    // Update Time & Date
-    if (app_sntp_get_time_str(time_str, sizeof(time_str))) {
-        if (ui_LabelTime) lv_label_set_text(ui_LabelTime, time_str);
+static void clock_update_timer_handler(lv_timer_t *timer) {
+  char time_str[16];
+  char date_str[32];
+  char val_str[32];
+  float temp, hum;
+
+  // Update Time & Date
+  if (app_sntp_get_time_str(time_str, sizeof(time_str))) {
+    if (ui_LabelTime)
+      lv_label_set_text(ui_LabelTime, time_str);
+    if (ui_WeatherClock)
+      lv_label_set_text(ui_WeatherClock, time_str);
+    if (ui_StatusClock)
+      lv_label_set_text(ui_StatusClock, time_str);
+  } else {
+    if (ui_LabelTime)
+      lv_label_set_text(ui_LabelTime, "--:--");
+  }
+
+  if (app_sntp_get_date_str(date_str, sizeof(date_str))) {
+    if (ui_LabelDate)
+      lv_label_set_text(ui_LabelDate, date_str);
+  }
+
+  // Update Sensor Screens
+  if (app_sensor_get_values(&temp, &hum) == ESP_OK) {
+    sprintf(val_str, "%.1f °C", temp);
+    if (ui_LabelTempValue)
+      lv_label_set_text(ui_LabelTempValue, val_str);
+    sprintf(val_str, "TEMP: %.1f °C", temp);
+    if (ui_LabelTempVal)
+      lv_label_set_text(ui_LabelTempVal, val_str);
+
+    sprintf(val_str, "%.1f %%", hum);
+    if (ui_LabelHumValue)
+      lv_label_set_text(ui_LabelHumValue, val_str);
+    sprintf(val_str, "HUM:  %.1f %%", hum);
+    if (ui_LabelHumVal)
+      lv_label_set_text(ui_LabelHumVal, val_str);
+  }
+
+  // Update Presence Status
+  if (ui_LabelPresenceValue) {
+    bool presence = app_sensor_get_presence();
+    lv_label_set_text(ui_LabelPresenceValue, presence ? "DETECTED" : "NONE");
+    lv_obj_set_style_text_color(
+        ui_LabelPresenceValue,
+        presence ? lv_color_hex(0x00FF00) : lv_color_hex(0xFF0000), 0);
+  }
+
+  // Update LUX (Placeholder/Actual)
+  if (ui_LabelLuxVal) {
+    float lux = app_sensor_get_lux();
+    sprintf(val_str, "LUX: %.1f", lux);
+    lv_label_set_text(ui_LabelLuxVal, val_str);
+  }
+}
+
+static void ui_event_PanelReply(lv_event_t *e) {
+  lv_event_code_t event_code = lv_event_get_code(e);
+  if (event_code == LV_EVENT_CLICKED) {
+    ESP_LOGI(TAG, "Touch Close triggered");
+    ui_ctrl_show_panel(UI_CTRL_PANEL_SLEEP, 0);
+  }
+}
+
+void ui_ctrl_init(void) {
+  bsp_display_lock(0);
+
+  ui_init();
+
+  // Add touch-to-close to reply panel
+  lv_obj_add_event_cb(ui_PanelReply, ui_event_PanelReply, LV_EVENT_CLICKED,
+                      NULL);
+  // Make it clickable if not already
+  lv_obj_add_flag(ui_PanelReply, LV_OBJ_FLAG_CLICKABLE);
+
+  scroll_timer_handle = lv_timer_create(
+      reply_content_scroll_timer_handler,
+      REPLY_SCROLL_TIMER_INTERVAL_MS / REPLY_SCROLL_SPEED, NULL);
+  lv_timer_pause(scroll_timer_handle);
+
+  lv_timer_create(wifi_check_timer_handler, WIFI_CHECK_TIMER_INTERVAL_S * 1000,
+                  NULL);
+  lv_timer_create(clock_update_timer_handler, CLOCK_UPDATE_TIMER_INTERVAL_MS,
+                  NULL);
+
+  bsp_display_unlock();
+}
+
+static void wifi_check_timer_handler(lv_timer_t *timer) {
+  if (WIFI_STATUS_CONNECTED_OK == wifi_connected_already()) {
+    lv_obj_clear_flag(ui_PanelSetupSteps, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(ui_PanelSetupWifi, LV_OBJ_FLAG_HIDDEN);
+    lv_timer_del(timer);
+    if (ui_get_btn_op_group()) {
+      lv_group_remove_all_objs(ui_get_btn_op_group());
+      lv_group_add_obj(ui_get_btn_op_group(), ui_ButtonSetup);
+    }
+  } else if (WIFI_STATUS_CONNECTED_FAILED == wifi_connected_already()) {
+    lv_label_set_text(ui_LabelSetupWifi, LABEL_NOT_WIFI_TEXT);
+  } else {
+    if (strlen(lv_label_get_text(ui_LabelSetupWifi)) >=
+        sizeof(LABEL_WIFI_TEXT) + LABEL_WIFI_DOT_COUNT_MAX + 1) {
+      lv_label_set_text(ui_LabelSetupWifi, LABEL_WIFI_TEXT);
     } else {
-        if (ui_LabelTime) lv_label_set_text(ui_LabelTime, "--:--");
+      lv_label_ins_text(ui_LabelSetupWifi, LV_LABEL_POS_LAST, ".");
     }
-    
-    if (app_sntp_get_date_str(date_str, sizeof(date_str))) {
-        if (ui_LabelDate) lv_label_set_text(ui_LabelDate, date_str);
-    }
-
-    // Update Sensors if screen is active
-    if (lv_scr_act() == ui_ScreenSensors) {
-        float temp = 0, hum = 0;
-        esp_err_t ret = app_sensor_get_values(&temp, &hum);
-        if (ret == ESP_OK) {
-            char val_str[16];
-            snprintf(val_str, sizeof(val_str), "%.1f °C", temp);
-            if (ui_LabelTempValue) lv_label_set_text(ui_LabelTempValue, val_str);
-            
-            snprintf(val_str, sizeof(val_str), "%.1f %%", hum);
-            if (ui_LabelHumValue) lv_label_set_text(ui_LabelHumValue, val_str);
-        } else {
-            ESP_LOGW(TAG, "Sensor read failed: %s", esp_err_to_name(ret));
-            if (ui_LabelTempValue) lv_label_set_text(ui_LabelTempValue, "Error");
-            if (ui_LabelHumValue) lv_label_set_text(ui_LabelHumValue, "Error");
-        }
-    }
+  }
 }
 
-static void ui_event_PanelReply(lv_event_t *e)
-{
-    lv_event_code_t event_code = lv_event_get_code(e);
-    if (event_code == LV_EVENT_CLICKED) {
-        ESP_LOGI(TAG, "Touch Close triggered");
-        ui_ctrl_show_panel(UI_CTRL_PANEL_SLEEP, 0);
-    }
-}
+static void show_panel_timer_handler(struct _lv_timer_t *t) {
+  ui_ctrl_panel_t panel = (ui_ctrl_panel_t)t->user_data;
+  lv_obj_t *show_panel = NULL;
+  lv_obj_t *hide_panel[3] = {NULL};
 
-void ui_ctrl_init(void)
-{
-    bsp_display_lock(0);
-
-    ui_init();
-
-    // Add touch-to-close to reply panel
-    lv_obj_add_event_cb(ui_PanelReply, ui_event_PanelReply, LV_EVENT_CLICKED, NULL);
-    // Make it clickable if not already
-    lv_obj_add_flag(ui_PanelReply, LV_OBJ_FLAG_CLICKABLE);
-
-    scroll_timer_handle = lv_timer_create(reply_content_scroll_timer_handler, REPLY_SCROLL_TIMER_INTERVAL_MS / REPLY_SCROLL_SPEED, NULL);
+  switch (panel) {
+  case UI_CTRL_PANEL_SLEEP:
+    show_panel = ui_PanelSleep;
+    hide_panel[0] = ui_PanelListen;
+    hide_panel[1] = ui_PanelGet;
+    hide_panel[2] = ui_PanelReply;
+    lv_obj_clear_flag(ui_ImageListenSettings, LV_OBJ_FLAG_HIDDEN);
+    lv_label_set_text(ui_LabelListenSpeak, " ");
+    break;
+  case UI_CTRL_PANEL_LISTEN:
+    show_panel = ui_PanelListen;
+    hide_panel[0] = ui_PanelSleep;
+    hide_panel[1] = ui_PanelGet;
+    hide_panel[2] = ui_PanelReply;
+    lv_obj_clear_flag(ui_LabelListenSpeak, LV_OBJ_FLAG_HIDDEN);
+    lv_label_set_text(ui_LabelListenSpeak, "Listening ...");
+    // Reset flags and timer of reply
+    reply_content_get = false;
+    reply_audio_start = false;
+    reply_audio_end = false;
     lv_timer_pause(scroll_timer_handle);
+    break;
+  case UI_CTRL_PANEL_GET:
+    show_panel = ui_PanelGet;
+    hide_panel[0] = ui_PanelSleep;
+    hide_panel[1] = ui_PanelListen;
+    hide_panel[2] = ui_PanelReply;
+    lv_obj_clear_flag(ui_LabelListenSpeak, LV_OBJ_FLAG_HIDDEN);
+    lv_label_set_text(ui_LabelListenSpeak, "Thinking ...");
+    break;
+  case UI_CTRL_PANEL_REPLY:
+    show_panel = ui_PanelReply;
+    hide_panel[0] = ui_PanelSleep;
+    hide_panel[1] = ui_PanelListen;
+    hide_panel[2] = ui_PanelGet;
+    lv_obj_add_flag(ui_ImageListenSettings, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(ui_ImageListenSettings, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(ui_LabelListenSpeak, LV_OBJ_FLAG_HIDDEN);
+    break;
+  default:
+    break;
+  }
 
-    lv_timer_create(wifi_check_timer_handler, WIFI_CHECK_TIMER_INTERVAL_S * 1000, NULL);
-    lv_timer_create(clock_update_timer_handler, CLOCK_UPDATE_TIMER_INTERVAL_MS, NULL);
+  if (panel != UI_CTRL_PANEL_REPLY) {
+    lv_obj_clear_flag(ui_ImageListenSettings, LV_OBJ_FLAG_HIDDEN);
+  }
 
-    bsp_display_unlock();
+  lv_obj_clear_flag(show_panel, LV_OBJ_FLAG_HIDDEN);
+  for (int i = 0; i < sizeof(hide_panel) / sizeof(lv_obj_t *); i++) {
+    lv_obj_add_flag(hide_panel[i], LV_OBJ_FLAG_HIDDEN);
+  }
+
+  current_panel = panel;
+
+  ESP_LOGI(TAG, "Swich to panel[%d]", panel);
 }
 
-static void wifi_check_timer_handler(lv_timer_t *timer)
-{
-    if (WIFI_STATUS_CONNECTED_OK == wifi_connected_already()) {
-        lv_obj_clear_flag(ui_PanelSetupSteps, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_add_flag(ui_PanelSetupWifi, LV_OBJ_FLAG_HIDDEN);
-        lv_timer_del(timer);
-        if (ui_get_btn_op_group()) {
-            lv_group_remove_all_objs(ui_get_btn_op_group());
-            lv_group_add_obj(ui_get_btn_op_group(), ui_ButtonSetup);
-        }
-    } else if (WIFI_STATUS_CONNECTED_FAILED == wifi_connected_already()) {
-        lv_label_set_text(ui_LabelSetupWifi, LABEL_NOT_WIFI_TEXT);
+void ui_ctrl_show_panel(ui_ctrl_panel_t panel, uint16_t timeout) {
+  bsp_display_lock(0);
+
+  if (timeout) {
+    lv_timer_t *timer =
+        lv_timer_create(show_panel_timer_handler, timeout, NULL);
+    timer->user_data = (void *)panel;
+    lv_timer_set_repeat_count(timer, 1);
+    ESP_LOGW(TAG, "Switch panel to [%d] in %dms", panel, timeout);
+  } else {
+    lv_timer_t timer;
+    timer.user_data = (void *)panel;
+    show_panel_timer_handler(&timer);
+  }
+
+  bsp_display_unlock();
+}
+
+static void reply_content_show_text(const char *text) {
+  if (NULL == text) {
+    return;
+  }
+
+  char *decode =
+      heap_caps_malloc((strlen(text) + 1), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+  assert(decode);
+
+  int j = 0;
+  for (int i = 0; i < strlen(text);) {
+    if ((*(text + i) == '\\') && ((i + 1) < strlen(text)) &&
+        (*(text + i + 1) == 'n')) {
+      *(decode + j++) = '\n';
+      i += 2;
     } else {
-        if (strlen(lv_label_get_text(ui_LabelSetupWifi)) >= sizeof(LABEL_WIFI_TEXT) + LABEL_WIFI_DOT_COUNT_MAX + 1) {
-            lv_label_set_text(ui_LabelSetupWifi, LABEL_WIFI_TEXT);
-        } else {
-            lv_label_ins_text(ui_LabelSetupWifi, LV_LABEL_POS_LAST, ".");
-        }
+      *(decode + j++) = *(text + i);
+      i += 1;
     }
+  }
+  *(decode + j) = '\0';
+
+  ESP_LOGI(TAG, "decode:[%d, %d] %s\r\n", j, strlen(decode), decode);
+
+  lv_label_set_text(ui_LabelReplyContent, decode);
+  content_height = lv_obj_get_self_height(ui_LabelReplyContent);
+  lv_obj_scroll_to_y(ui_ContainerReplyContent, 0, LV_ANIM_OFF);
+  reply_content_get = true;
+  lv_timer_resume(scroll_timer_handle);
+  ESP_LOGI(TAG, "reply scroll timer start");
+
+  if (decode) {
+    free(decode);
+  }
 }
 
-static void show_panel_timer_handler(struct _lv_timer_t *t)
-{
-    ui_ctrl_panel_t panel = (ui_ctrl_panel_t)t->user_data;
-    lv_obj_t *show_panel = NULL;
-    lv_obj_t *hide_panel[3] = { NULL };
+void ui_ctrl_label_show_text(ui_ctrl_label_t label, const char *text) {
+  bsp_display_lock(0);
 
-    switch (panel) {
-    case UI_CTRL_PANEL_SLEEP:
-        show_panel = ui_PanelSleep;
-        hide_panel[0] = ui_PanelListen;
-        hide_panel[1] = ui_PanelGet;
-        hide_panel[2] = ui_PanelReply;
-        lv_obj_clear_flag(ui_ImageListenSettings, LV_OBJ_FLAG_HIDDEN);
-        lv_label_set_text(ui_LabelListenSpeak, " ");
-        break;
-    case UI_CTRL_PANEL_LISTEN:
-        show_panel = ui_PanelListen;
-        hide_panel[0] = ui_PanelSleep;
-        hide_panel[1] = ui_PanelGet;
-        hide_panel[2] = ui_PanelReply;
-        lv_obj_clear_flag(ui_LabelListenSpeak, LV_OBJ_FLAG_HIDDEN);
-        lv_label_set_text(ui_LabelListenSpeak, "Listening ...");
-        // Reset flags and timer of reply
-        reply_content_get = false;
-        reply_audio_start = false;
-        reply_audio_end = false;
-        lv_timer_pause(scroll_timer_handle);
-        break;
-    case UI_CTRL_PANEL_GET:
-        show_panel = ui_PanelGet;
-        hide_panel[0] = ui_PanelSleep;
-        hide_panel[1] = ui_PanelListen;
-        hide_panel[2] = ui_PanelReply;
-        lv_obj_clear_flag(ui_LabelListenSpeak, LV_OBJ_FLAG_HIDDEN);
-        lv_label_set_text(ui_LabelListenSpeak, "Thinking ...");
-        break;
-    case UI_CTRL_PANEL_REPLY:
-        show_panel = ui_PanelReply;
-        hide_panel[0] = ui_PanelSleep;
-        hide_panel[1] = ui_PanelListen;
-        hide_panel[2] = ui_PanelGet;
-        lv_obj_add_flag(ui_ImageListenSettings, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_add_flag(ui_ImageListenSettings, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_add_flag(ui_LabelListenSpeak, LV_OBJ_FLAG_HIDDEN);
-        break;
+  if (text != NULL) {
+    switch (label) {
+    case UI_CTRL_LABEL_LISTEN_SPEAK:
+      ESP_LOGI(TAG, "update listen speak");
+      lv_label_set_text(ui_LabelListenSpeak, text);
+      break;
+    case UI_CTRL_LABEL_REPLY_QUESTION:
+      ESP_LOGI(TAG, "update reply question");
+      lv_label_set_text(ui_LabelReplyQuestion, text);
+      break;
+    case UI_CTRL_LABEL_REPLY_CONTENT:
+      ESP_LOGI(TAG, "update reply content");
+      reply_content_show_text(text);
+      break;
     default:
-        break;
+      break;
     }
+  }
 
-    if (panel != UI_CTRL_PANEL_REPLY) {
-        lv_obj_clear_flag(ui_ImageListenSettings, LV_OBJ_FLAG_HIDDEN);
+  bsp_display_unlock();
+}
+
+static void anim_callback_set_bg_img_opacity(lv_anim_t *a, int32_t v) {
+  ui_anim_user_data_t *usr = (ui_anim_user_data_t *)a->user_data;
+  lv_obj_set_style_bg_img_opa(usr->target, v, 0);
+}
+
+static int32_t anim_callback_get_opacity(lv_anim_t *a) {
+  ui_anim_user_data_t *usr = (ui_anim_user_data_t *)a->user_data;
+  return lv_obj_get_style_bg_img_opa(usr->target, 0);
+}
+
+void ui_sleep_show_animation(void) {
+  bsp_display_lock(0);
+
+  ui_anim_user_data_t *PropertyAnimation_0_user_data =
+      lv_mem_alloc(sizeof(ui_anim_user_data_t));
+  PropertyAnimation_0_user_data->target = ui_ContainerBigZ;
+  PropertyAnimation_0_user_data->val = -1;
+  lv_anim_t PropertyAnimation_0;
+  lv_anim_init(&PropertyAnimation_0);
+  lv_anim_set_time(&PropertyAnimation_0, 1000);
+  lv_anim_set_user_data(&PropertyAnimation_0, PropertyAnimation_0_user_data);
+  lv_anim_set_custom_exec_cb(&PropertyAnimation_0,
+                             anim_callback_set_bg_img_opacity);
+  lv_anim_set_values(&PropertyAnimation_0, 0, 255);
+  lv_anim_set_path_cb(&PropertyAnimation_0, lv_anim_path_linear);
+  lv_anim_set_delay(&PropertyAnimation_0, 0);
+  // lv_anim_set_deleted_cb( &PropertyAnimation_0,
+  // _ui_anim_callback_free_user_data );
+  lv_anim_set_playback_time(&PropertyAnimation_0, 1000);
+  lv_anim_set_playback_delay(&PropertyAnimation_0, 0);
+  lv_anim_set_repeat_count(&PropertyAnimation_0, LV_ANIM_REPEAT_INFINITE);
+  lv_anim_set_repeat_delay(&PropertyAnimation_0, 1000);
+  lv_anim_set_early_apply(&PropertyAnimation_0, false);
+  lv_anim_set_get_value_cb(&PropertyAnimation_0, &anim_callback_get_opacity);
+  lv_anim_start(&PropertyAnimation_0);
+
+  ui_anim_user_data_t *PropertyAnimation_1_user_data =
+      lv_mem_alloc(sizeof(ui_anim_user_data_t));
+  PropertyAnimation_1_user_data->target = ui_ContainerSmallZ;
+  PropertyAnimation_1_user_data->val = -1;
+  lv_anim_t PropertyAnimation_1;
+  lv_anim_init(&PropertyAnimation_1);
+  lv_anim_set_time(&PropertyAnimation_1, 1000);
+  lv_anim_set_user_data(&PropertyAnimation_1, PropertyAnimation_1_user_data);
+  lv_anim_set_custom_exec_cb(&PropertyAnimation_1,
+                             anim_callback_set_bg_img_opacity);
+  lv_anim_set_values(&PropertyAnimation_1, 0, 255);
+  lv_anim_set_path_cb(&PropertyAnimation_1, lv_anim_path_linear);
+  lv_anim_set_delay(&PropertyAnimation_1, 1000);
+  // lv_anim_set_deleted_cb( &PropertyAnimation_1,
+  // _ui_anim_callback_free_user_data );
+  lv_anim_set_playback_time(&PropertyAnimation_1, 1000);
+  lv_anim_set_playback_delay(&PropertyAnimation_1, 0);
+  lv_anim_set_repeat_count(&PropertyAnimation_1, LV_ANIM_REPEAT_INFINITE);
+  lv_anim_set_repeat_delay(&PropertyAnimation_1, 1000);
+  lv_anim_set_early_apply(&PropertyAnimation_1, false);
+  lv_anim_set_get_value_cb(&PropertyAnimation_1, &anim_callback_get_opacity);
+  lv_anim_start(&PropertyAnimation_1);
+
+  bsp_display_unlock();
+}
+
+void ui_ctrl_reply_set_audio_start_flag(bool result) {
+  reply_audio_start = result;
+}
+
+bool ui_ctrl_reply_get_audio_start_flag(void) { return reply_audio_start; }
+
+void ui_ctrl_reply_set_audio_end_flag(bool result) { reply_audio_end = result; }
+
+static void reply_content_scroll_timer_handler() {
+  lv_coord_t offset = 0;
+  const lv_font_t *font = NULL;
+
+  if (reply_content_get && reply_audio_start) {
+    font = lv_obj_get_style_text_font(ui_LabelReplyContent, 0);
+    offset = lv_obj_get_scroll_y(ui_ContainerReplyContent);
+    // ESP_LOGI(TAG, "offset: %d, content_height: %d, font_height: %d", offset,
+    // content_height, font->line_height);
+    if ((content_height > lv_obj_get_height(ui_ContainerReplyContent)) &&
+        (offset <
+         (content_height - lv_obj_get_height(ui_ContainerReplyContent)))) {
+      offset += font->line_height / 2;
+      lv_obj_scroll_to_y(ui_ContainerReplyContent, offset, LV_ANIM_OFF);
+    } else if (reply_audio_end) {
+      ESP_LOGI(TAG, "reply scroll timer stop");
+      reply_content_get = false;
+      reply_audio_start = false;
+      reply_audio_end = false;
+      lv_timer_pause(scroll_timer_handle);
+      ui_ctrl_show_panel(UI_CTRL_PANEL_SLEEP, 5000);
     }
-
-    lv_obj_clear_flag(show_panel, LV_OBJ_FLAG_HIDDEN);
-    for (int i = 0; i < sizeof(hide_panel) / sizeof(lv_obj_t *); i++) {
-        lv_obj_add_flag(hide_panel[i], LV_OBJ_FLAG_HIDDEN);
-    }
-
-    current_panel = panel;
-
-    ESP_LOGI(TAG, "Swich to panel[%d]", panel);
+  }
 }
 
-void ui_ctrl_show_panel(ui_ctrl_panel_t panel, uint16_t timeout)
-{
-    bsp_display_lock(0);
-
-    if (timeout) {
-        lv_timer_t *timer = lv_timer_create(show_panel_timer_handler, timeout, NULL);
-        timer->user_data = (void *)panel;
-        lv_timer_set_repeat_count(timer, 1);
-        ESP_LOGW(TAG, "Switch panel to [%d] in %dms", panel, timeout);
-    } else {
-        lv_timer_t timer;
-        timer.user_data = (void *)panel;
-        show_panel_timer_handler(&timer);
-    }
-
-    bsp_display_unlock();
-}
-
-static void reply_content_show_text(const char *text)
-{
-    if (NULL == text) {
-        return;
-    }
-
-    char *decode = heap_caps_malloc((strlen(text) + 1), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-    assert(decode);
-
-    int j = 0;
-    for (int i = 0; i < strlen(text);) {
-        if ((*(text + i) == '\\') && ((i + 1) < strlen(text)) && (*(text + i + 1) == 'n')) {
-            *(decode + j++) = '\n';
-            i += 2;
-        } else {
-            *(decode + j++) = *(text + i);
-            i += 1;
-        }
-    }
-    *(decode + j) = '\0';
-
-    ESP_LOGI(TAG, "decode:[%d, %d] %s\r\n", j, strlen(decode), decode);
-
-    lv_label_set_text(ui_LabelReplyContent, decode);
-    content_height = lv_obj_get_self_height(ui_LabelReplyContent);
-    lv_obj_scroll_to_y(ui_ContainerReplyContent, 0, LV_ANIM_OFF);
-    reply_content_get = true;
-    lv_timer_resume(scroll_timer_handle);
-    ESP_LOGI(TAG, "reply scroll timer start");
-
-    if (decode) {
-        free(decode);
-    }
-}
-
-void ui_ctrl_label_show_text(ui_ctrl_label_t label, const char *text)
-{
-    bsp_display_lock(0);
-
-    if (text != NULL) {
-        switch (label) {
-        case UI_CTRL_LABEL_LISTEN_SPEAK:
-            ESP_LOGI(TAG, "update listen speak");
-            lv_label_set_text(ui_LabelListenSpeak, text);
-            break;
-        case UI_CTRL_LABEL_REPLY_QUESTION:
-            ESP_LOGI(TAG, "update reply question");
-            lv_label_set_text(ui_LabelReplyQuestion, text);
-            break;
-        case UI_CTRL_LABEL_REPLY_CONTENT:
-            ESP_LOGI(TAG, "update reply content");
-            reply_content_show_text(text);
-            break;
-        default:
-            break;
-        }
-    }
-
-    bsp_display_unlock();
-}
-
-static void anim_callback_set_bg_img_opacity(lv_anim_t *a, int32_t v)
-{
-    ui_anim_user_data_t *usr = (ui_anim_user_data_t *)a->user_data;
-    lv_obj_set_style_bg_img_opa(usr->target, v, 0);
-}
-
-static int32_t anim_callback_get_opacity(lv_anim_t *a)
-{
-    ui_anim_user_data_t *usr = (ui_anim_user_data_t *)a->user_data;
-    return lv_obj_get_style_bg_img_opa(usr->target, 0);
-}
-
-void ui_sleep_show_animation(void)
-{
-    bsp_display_lock(0);
-
-    ui_anim_user_data_t *PropertyAnimation_0_user_data = lv_mem_alloc(sizeof(ui_anim_user_data_t));
-    PropertyAnimation_0_user_data->target = ui_ContainerBigZ;
-    PropertyAnimation_0_user_data->val = -1;
-    lv_anim_t PropertyAnimation_0;
-    lv_anim_init(&PropertyAnimation_0);
-    lv_anim_set_time(&PropertyAnimation_0, 1000);
-    lv_anim_set_user_data(&PropertyAnimation_0, PropertyAnimation_0_user_data);
-    lv_anim_set_custom_exec_cb(&PropertyAnimation_0, anim_callback_set_bg_img_opacity );
-    lv_anim_set_values(&PropertyAnimation_0, 0, 255 );
-    lv_anim_set_path_cb( &PropertyAnimation_0, lv_anim_path_linear);
-    lv_anim_set_delay( &PropertyAnimation_0, 0 );
-    // lv_anim_set_deleted_cb( &PropertyAnimation_0, _ui_anim_callback_free_user_data );
-    lv_anim_set_playback_time(&PropertyAnimation_0, 1000);
-    lv_anim_set_playback_delay(&PropertyAnimation_0, 0);
-    lv_anim_set_repeat_count(&PropertyAnimation_0, LV_ANIM_REPEAT_INFINITE );
-    lv_anim_set_repeat_delay(&PropertyAnimation_0, 1000);
-    lv_anim_set_early_apply( &PropertyAnimation_0, false );
-    lv_anim_set_get_value_cb(&PropertyAnimation_0, &anim_callback_get_opacity );
-    lv_anim_start(&PropertyAnimation_0);
-
-    ui_anim_user_data_t *PropertyAnimation_1_user_data = lv_mem_alloc(sizeof(ui_anim_user_data_t));
-    PropertyAnimation_1_user_data->target = ui_ContainerSmallZ;
-    PropertyAnimation_1_user_data->val = -1;
-    lv_anim_t PropertyAnimation_1;
-    lv_anim_init(&PropertyAnimation_1);
-    lv_anim_set_time(&PropertyAnimation_1, 1000);
-    lv_anim_set_user_data(&PropertyAnimation_1, PropertyAnimation_1_user_data);
-    lv_anim_set_custom_exec_cb(&PropertyAnimation_1, anim_callback_set_bg_img_opacity );
-    lv_anim_set_values(&PropertyAnimation_1, 0, 255 );
-    lv_anim_set_path_cb( &PropertyAnimation_1, lv_anim_path_linear);
-    lv_anim_set_delay( &PropertyAnimation_1, 1000 );
-    // lv_anim_set_deleted_cb( &PropertyAnimation_1, _ui_anim_callback_free_user_data );
-    lv_anim_set_playback_time(&PropertyAnimation_1, 1000);
-    lv_anim_set_playback_delay(&PropertyAnimation_1, 0);
-    lv_anim_set_repeat_count(&PropertyAnimation_1, LV_ANIM_REPEAT_INFINITE );
-    lv_anim_set_repeat_delay(&PropertyAnimation_1, 1000);
-    lv_anim_set_early_apply( &PropertyAnimation_1, false );
-    lv_anim_set_get_value_cb(&PropertyAnimation_1, &anim_callback_get_opacity );
-    lv_anim_start(&PropertyAnimation_1);
-
-    bsp_display_unlock();
-}
-
-void ui_ctrl_reply_set_audio_start_flag(bool result)
-{
-    reply_audio_start = result;
-}
-
-bool ui_ctrl_reply_get_audio_start_flag(void)
-{
-    return reply_audio_start;
-}
-
-void ui_ctrl_reply_set_audio_end_flag(bool result)
-{
-    reply_audio_end = result;
-}
-
-static void reply_content_scroll_timer_handler()
-{
-    lv_coord_t offset = 0;
-    const lv_font_t *font = NULL;
-
-    if (reply_content_get && reply_audio_start) {
-        font = lv_obj_get_style_text_font(ui_LabelReplyContent, 0);
-        offset = lv_obj_get_scroll_y(ui_ContainerReplyContent);
-        // ESP_LOGI(TAG, "offset: %d, content_height: %d, font_height: %d", offset, content_height, font->line_height);
-        if ((content_height > lv_obj_get_height(ui_ContainerReplyContent)) &&
-                (offset < (content_height - lv_obj_get_height(ui_ContainerReplyContent)))) {
-            offset += font->line_height / 2;
-            lv_obj_scroll_to_y(ui_ContainerReplyContent, offset, LV_ANIM_OFF);
-        } else if (reply_audio_end) {
-            ESP_LOGI(TAG, "reply scroll timer stop");
-            reply_content_get = false;
-            reply_audio_start = false;
-            reply_audio_end = false;
-            lv_timer_pause(scroll_timer_handle);
-            ui_ctrl_show_panel(UI_CTRL_PANEL_SLEEP, 5000);
-        }
-    }
-}
-
-void ui_ctrl_guide_jump( void )
-{
-    lv_obj_t *act_scr = lv_scr_act();
-    if (act_scr == ui_ScreenSetup) {
-        ESP_LOGI(TAG, "act_scr:%p, ui_ScreenSetup:%p", act_scr, ui_ScreenSetup);
-        lv_event_send(ui_ButtonSetup, LV_EVENT_CLICKED, 0);
-    }
+void ui_ctrl_guide_jump(void) {
+  lv_obj_t *act_scr = lv_scr_act();
+  if (act_scr == ui_ScreenSetup) {
+    ESP_LOGI(TAG, "act_scr:%p, ui_ScreenSetup:%p", act_scr, ui_ScreenSetup);
+    lv_event_send(ui_ButtonSetup, LV_EVENT_CLICKED, 0);
+  }
 }

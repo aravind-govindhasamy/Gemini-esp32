@@ -30,6 +30,8 @@
 #include "app_ui_ctrl.h"
 #include "app_sensor.h"
 #include "app_sntp.h"
+#include "ui.h"
+#include "esp_netif.h"
 
 #define SCROLL_START_DELAY_S            (1.5)
 #define LISTEN_SPEAK_PANEL_DELAY_MS     2000
@@ -37,7 +39,8 @@
 #define SORRY_CANNOT_UNDERSTAND         "Sorry, I can't understand."
 
 #include "main.h"
-#include "main.h"
+
+void ui_update_task(void *pvParameters);
 
 static const char *TAG = "app_main";
 static sys_param_t *sys_param = NULL;
@@ -210,11 +213,64 @@ void app_main()
     // Initialize TTS
     app_tts_init();
     bsp_codec_volume_set(70, NULL);
+
+    xTaskCreate(ui_update_task, "ui_update_task", 4096, NULL, 5, NULL);
     
     while (true) {
-        ESP_LOGI(TAG, "Memory - Internal: %d, SPIRAM: %d",
-                 heap_caps_get_free_size(MALLOC_CAP_8BIT | MALLOC_CAP_INTERNAL),
-                 heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
-        vTaskDelay(pdMS_TO_TICKS(5 * 1000));
+        vTaskDelay(pdMS_TO_TICKS(10 * 1000));
+    }
+}
+
+// Global UI update task
+void ui_update_task(void *pvParameters) {
+    char time_str[32];
+    char date_str[32];
+    float temp, hum;
+    
+    while(1) {
+        // 1. Update Time/Date
+        app_sntp_get_time_str(time_str, sizeof(time_str)); 
+        time_t now;
+        struct tm timeinfo;
+        time(&now);
+        localtime_r(&now, &timeinfo);
+        strftime(time_str, sizeof(time_str), "%H:%M", &timeinfo);
+        strftime(date_str, sizeof(date_str), "%a, %b %d", &timeinfo);
+
+        // 2. Update Sensors
+        app_sensor_get_values(&temp, &hum);
+
+        // 3. Update IP
+        char ip_str[32] = "0.0.0.0";
+        esp_netif_ip_info_t ip_info;
+        esp_netif_t *netif = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
+        if (netif && esp_netif_get_ip_info(netif, &ip_info) == ESP_OK) {
+            esp_ip4addr_ntoa(&ip_info.ip, ip_str, sizeof(ip_str));
+        }
+
+        // 4. Update UI Objects
+        bsp_display_lock(0);
+        lv_label_set_text(ui_LabelTime, time_str);
+        lv_label_set_text(ui_LabelDate, date_str);
+        
+        if (ui_ScreenWeather) {
+            lv_label_set_text(ui_WeatherClock, time_str);
+            lv_label_set_text_fmt(ui_LabelTempVal, "TEMP: %.1f°C", temp);
+            lv_label_set_text_fmt(ui_LabelHumVal, "HUM:  %.1f%%", hum);
+        }
+
+        if (ui_ScreenStatus) {
+            lv_label_set_text(ui_StatusClock, time_str);
+            lv_label_set_text_fmt(ui_LabelIPVal, "IP: %s", ip_str);
+            lv_label_set_text_fmt(ui_LabelLuxVal, "LUX: %.0f", app_sensor_get_lux());
+        }
+
+        if (ui_ScreenSensors && lv_scr_act() == ui_ScreenSensors) {
+            lv_label_set_text_fmt(ui_LabelTempValue, "%.1f °C", temp);
+            lv_label_set_text_fmt(ui_LabelHumValue, "%.1f %%", hum);
+        }
+        bsp_display_unlock();
+
+        vTaskDelay(pdMS_TO_TICKS(1000));
     }
 }
