@@ -4,15 +4,14 @@ file(GLOB_RECURSE UI_SRCS ${UI_DIR}/*.c)
 set(APP_DIR ./app)
 set(APP_SRCS 
     ${APP_DIR}/app_audio.c
+    ${APP_DIR}/app_httpd.c
     ${APP_DIR}/app_sensor.c
     ${APP_DIR}/app_sntp.c
     ${APP_DIR}/app_sr.c
-    ${APP_DIR}/app_tts.c
     ${APP_DIR}/app_ui_ctrl.c
     ${APP_DIR}/app_ui_events.c
     ${APP_DIR}/app_wifi.c
     ${APP_DIR}/bsp_board.c
-    ${APP_DIR}/gemini.c
     ${APP_DIR}/wit.c
 )
 
@@ -36,6 +35,8 @@ idf_component_register(
         esp-box-3
         nvs_flash
         esp_http_client
+        esp_http_server
+        json
         mbedtls
         esp_wifi
         esp_event
@@ -44,7 +45,6 @@ idf_component_register(
         spiffs
         vfs
         esp_codec_dev
-        jmattsson__picotts
 )
 
 set(MV_UF2_BIN_EXE ${COMPONENT_PATH}/generateuf2.py)

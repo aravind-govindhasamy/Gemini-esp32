@@ -6,7 +6,6 @@
 #include "../../app/app_sntp.h"
 #include "../ui.h"
 
-
 lv_obj_t *ui_LabelTime;
 lv_obj_t *ui_LabelDate;
 // Sensor button removed - access via swipe
@@ -603,13 +602,7 @@ void ui_ScreenListen_screen_init(void) {
   lv_obj_set_style_text_font(ui_LabelListenSpeak, &ui_font_KaiTiCN20,
                              LV_PART_MAIN | LV_STATE_DEFAULT);
 
-  // SETTINGS BUTTON REMOVED FROM HOME SCREEN
-  lv_obj_set_style_border_color(ui_ImageListenSettings, lv_color_hex(0xFFFFFF),
-                                LV_PART_MAIN | LV_STATE_DEFAULT);
-  lv_obj_set_style_border_opa(ui_ImageListenSettings, 255,
-                              LV_PART_MAIN | LV_STATE_DEFAULT);
-  lv_obj_set_style_border_width(ui_ImageListenSettings, 5,
-                                LV_PART_MAIN | LV_STATE_FOCUSED);
+  // SETTINGS BUTTON REMOVED FROM HOME SCREEN - MOVED TO STATUS SCREEN
 
   lv_obj_add_event_cb(ui_PanelSleep, ui_event_PanelSleep, LV_EVENT_ALL, NULL);
 }
