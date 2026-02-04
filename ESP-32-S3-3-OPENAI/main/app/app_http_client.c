@@ -34,9 +34,7 @@ static void http_push_task(void *pvParameters) {
     // Use HUB_IP from settings or hardcoded for now
     // Assuming user will set HUB_IP in their .env/settings
     char url[128];
-    snprintf(url, sizeof(url), "http://%s:8000/update",
-             param->gemini_key[0] ? "192.168.33.2"
-                                  : "192.168.33.2"); // TODO: Load from NVS
+    snprintf(url, sizeof(url), "http://192.168.32.10:8000/update");
 
     esp_http_client_config_t config = {
         .url = url,

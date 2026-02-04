@@ -21,7 +21,9 @@ st.set_page_config(
 )
 
 if "hub_ip" not in st.session_state:
-    st.session_state.hub_ip = os.getenv("HUB_IP", "localhost")
+    st.session_state.hub_ip = os.getenv("HUB_IP", "192.168.32.10")
+if "esp32_ip" not in st.session_state:
+    st.session_state.esp32_ip = os.getenv("ESP32_IP", "192.168.32.2")
 if "log_messages" not in st.session_state:
     st.session_state.log_messages = deque(maxlen=100)
 if "last_sensors" not in st.session_state:
