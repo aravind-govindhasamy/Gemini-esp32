@@ -3,7 +3,6 @@
 #include <stdio.h>
 #include <string.h>
 
-
 #include "bsp/esp-bsp.h"
 #include "esp_check.h"
 #include "esp_log.h"
@@ -14,7 +13,6 @@
 #include "nvs.h"
 #include "nvs_flash.h"
 #include "settings.h"
-
 
 esp_err_t settings_write_parameter_to_nvs(void);
 static const char *TAG = "settings";
@@ -45,6 +43,7 @@ esp_err_t settings_read_parameter_from_nvs(void) {
   strncpy(g_sys_param.wit_token, "", KEY_SIZE);
   strncpy(g_sys_param.user_name, "Aravind", 32);
   g_sys_param.user_age = 25;
+  strncpy(g_sys_param.hub_ip, "192.168.32.10", 16);
   /* ------------------------------------------ */
 
   esp_err_t ret = nvs_open_from_partition(uf2_nvs_partition, uf2_nvs_namespace,
@@ -100,6 +99,12 @@ esp_err_t settings_read_parameter_from_nvs(void) {
     ESP_LOGW(TAG, "No User Age in NVS");
   }
 
+  // Read Hub IP
+  len = sizeof(g_sys_param.hub_ip);
+  if (nvs_get_str(my_handle, "hub_ip", g_sys_param.hub_ip, &len) != ESP_OK) {
+    ESP_LOGW(TAG, "No Hub IP in NVS");
+  }
+
   nvs_close(my_handle);
 
   ESP_LOGI(TAG, "stored ssid:%s", g_sys_param.ssid);
@@ -118,6 +123,7 @@ esp_err_t settings_write_parameter_to_nvs(void) {
 
   nvs_set_str(my_handle, "user_name", g_sys_param.user_name);
   nvs_set_str(my_handle, "wit_token", g_sys_param.wit_token);
+  nvs_set_str(my_handle, "hub_ip", g_sys_param.hub_ip);
   nvs_set_i32(my_handle, "user_age", g_sys_param.user_age);
 
   ret = nvs_commit(my_handle);

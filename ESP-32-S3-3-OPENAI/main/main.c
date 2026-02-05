@@ -90,6 +90,7 @@ esp_err_t gemini_speech_bot_trigger(const char *prompt) {
 }
 
 #include "driver/gpio.h"
+#include "driver/i2c.h"
 
 void hw_light_set(bool on, uint32_t color) {
   ESP_LOGI(TAG, "Hardware: Light %s (Color: %06X)", on ? "ON" : "OFF",
@@ -130,6 +131,22 @@ void app_main() {
   bsp_spiffs_mount();
   bsp_i2c_init();
 
+  // Harden I2C stability after BSP initialization
+  i2c_config_t i2c_conf = {
+      .mode = I2C_MODE_MASTER,
+      .sda_io_num = BSP_I2C_SDA,
+      .sda_pullup_en = GPIO_PULLUP_ENABLE,
+      .scl_io_num = BSP_I2C_SCL,
+      .scl_pullup_en = GPIO_PULLUP_ENABLE,
+      .master.clk_speed = 50000, // Reduced to 50kHz for maximum reliability
+  };
+  i2c_param_config(BSP_I2C_NUM, &i2c_conf);
+  i2c_set_timeout(BSP_I2C_NUM, 0xFFFFF); // Maximum hardware timeout
+
+  // Enable internal pull-ups as an extra safety measure
+  gpio_set_pull_mode(BSP_I2C_SDA, GPIO_PULLUP_ONLY);
+  gpio_set_pull_mode(BSP_I2C_SCL, GPIO_PULLUP_ONLY);
+
   bsp_display_cfg_t cfg = {
       .lvgl_port_cfg = ESP_LVGL_PORT_INIT_CONFIG(),
   };
@@ -159,7 +176,8 @@ void app_main() {
 
   bsp_codec_volume_set(70, NULL);
 
-  xTaskCreate(ui_update_task, "ui_update_task", 4096, NULL, 5, NULL);
+  xTaskCreatePinnedToCore(&ui_update_task, "ui_update_task", 4096, NULL, 5,
+                          NULL, 1);
 
   while (true) {
     vTaskDelay(pdMS_TO_TICKS(10 * 1000));
@@ -184,23 +202,24 @@ void ui_update_task(void *pvParameters) {
     // 2. Update Sensors
     app_sensor_get_values(&temp, &hum);
 
-    // 3. Update UI Labels
-    bsp_display_lock(0);
-    if (ui_LabelTime)
-      lv_label_set_text(ui_LabelTime, time_str);
-    if (ui_LabelDate)
-      lv_label_set_text(ui_LabelDate, date_str);
+    // 3. Update UI Labels (Safely with Lock)
+    if (bsp_display_lock(0)) {
+      if (ui_LabelTime)
+        lv_label_set_text(ui_LabelTime, time_str);
+      if (ui_LabelDate)
+        lv_label_set_text(ui_LabelDate, date_str);
 
-    char sensor_str[32];
-    snprintf(sensor_str, sizeof(sensor_str), "%.1f°C", temp);
-    if (ui_LabelTempValue)
-      lv_label_set_text(ui_LabelTempValue, sensor_str);
+      char sensor_str[32];
+      snprintf(sensor_str, sizeof(sensor_str), "%.1f°C", temp);
+      if (ui_LabelTempValue)
+        lv_label_set_text(ui_LabelTempValue, sensor_str);
 
-    snprintf(sensor_str, sizeof(sensor_str), "%.0f%%", hum);
-    if (ui_LabelHumValue)
-      lv_label_set_text(ui_LabelHumValue, sensor_str);
-    bsp_display_unlock();
+      snprintf(sensor_str, sizeof(sensor_str), "%.0f%%", hum);
+      if (ui_LabelHumValue)
+        lv_label_set_text(ui_LabelHumValue, sensor_str);
+      bsp_display_unlock();
+    }
 
-    vTaskDelay(pdMS_TO_TICKS(1000));
+    vTaskDelay(pdMS_TO_TICKS(2000)); // Reduced frequency to 2 seconds
   }
 }

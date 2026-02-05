@@ -1,8 +1,13 @@
 #include "app_sensor.h"
+#include "app_wifi.h"
 #include "cJSON.h"
+#include "driver/gpio.h"
+#include "driver/i2c.h"
+#include "esp_err.h"
 #include "esp_http_client.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
 #include "freertos/task.h"
 #include "settings.h"
 #include <stdio.h>
@@ -12,10 +17,15 @@
 static const char *TAG = "app_http_client";
 
 static void http_push_task(void *pvParameters) {
-  char post_data[256];
   sys_param_t *param = settings_get_parameter();
 
   while (1) {
+    if (wifi_connected_already() != WIFI_STATUS_CONNECTED_OK) {
+      ESP_LOGW(TAG, "Waiting for WiFi connection...");
+      vTaskDelay(pdMS_TO_TICKS(5000));
+      continue;
+    }
+
     float temp, hum, lux;
     bool presence;
 
@@ -34,11 +44,12 @@ static void http_push_task(void *pvParameters) {
     // Use HUB_IP from settings or hardcoded for now
     // Assuming user will set HUB_IP in their .env/settings
     char url[128];
-    snprintf(url, sizeof(url), "http://192.168.32.10:8000/update");
+    snprintf(url, sizeof(url), "http://%s:8000/update", param->hub_ip);
 
     esp_http_client_config_t config = {
         .url = url,
         .method = HTTP_METHOD_POST,
+        .timeout_ms = 10000,
     };
     esp_http_client_handle_t client = esp_http_client_init(&config);
 
@@ -47,21 +58,26 @@ static void http_push_task(void *pvParameters) {
 
     esp_err_t err = esp_http_client_perform(client);
     if (err == ESP_OK) {
-      ESP_LOGI(TAG, "HTTP POST Status = %d, content_length = %lld",
+      ESP_LOGI(TAG, "✅ HTTP POST Status = %d, content_length = %lld",
                esp_http_client_get_status_code(client),
                esp_http_client_get_content_length(client));
     } else {
-      ESP_LOGE(TAG, "HTTP POST request failed: %s", esp_err_to_name(err));
+      ESP_LOGE(TAG, "❌ HTTP POST request failed to %s: %s", url,
+               esp_err_to_name(err));
+      if (err == ESP_ERR_HTTP_CONNECT) {
+        ESP_LOGW(TAG, "Target Hub is unreachable. Check firewall/port 8000.");
+      }
     }
 
     esp_http_client_cleanup(client);
     cJSON_Delete(root);
     free(json_str);
 
-    vTaskDelay(pdMS_TO_TICKS(5000)); // Push every 5 seconds
+    vTaskDelay(pdMS_TO_TICKS(60000)); // Push every 60 seconds
   }
 }
 
 void app_http_client_start(void) {
-  xTaskCreate(http_push_task, "http_push_task", 8192, NULL, 5, NULL);
+  xTaskCreatePinnedToCore(&http_push_task, "http_push_task", 8192, NULL, 5,
+                          NULL, 1);
 }

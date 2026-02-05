@@ -13,12 +13,13 @@
 #define KEY_SIZE 165
 
 typedef struct {
-    char ssid[SSID_SIZE];             /* SSID of target AP. */
-    char password[PASSWORD_SIZE];     /* Password of target AP. */
-    char gemini_key[KEY_SIZE];        /* Gemini key. */
-    char wit_token[KEY_SIZE];         /* Wit.ai token. */
-    char user_name[32];               /* User's name */
-    int32_t user_age;                 /* User's age */
+  char ssid[SSID_SIZE];         /* SSID of target AP. */
+  char password[PASSWORD_SIZE]; /* Password of target AP. */
+  char gemini_key[KEY_SIZE];    /* Gemini key. */
+  char wit_token[KEY_SIZE];     /* Wit.ai token. */
+  char user_name[32];           /* User's name */
+  int32_t user_age;             /* User's age */
+  char hub_ip[16];              /* Hub IP address (xxx.xxx.xxx.xxx) */
 } sys_param_t;
 
 esp_err_t settings_factory_reset(void);
