@@ -113,7 +113,31 @@ lv_obj_t *ui_LabelNetHub;
 lv_obj_t *ui_LabelNetGW;
 lv_obj_t *ui_ButtonNetBack;
 lv_obj_t *ui_LabelNetBack;
+lv_obj_t *ui_ButtonSensorBack;
+lv_obj_t *ui_LabelSensorBack;
+lv_obj_t *ui_ButtonStatusBack;
+lv_obj_t *ui_LabelStatusBack;
+
+// SCREEN: ui_ScreenPlay
+void ui_ScreenPlay_screen_init(void);
+lv_obj_t *ui_ScreenPlay;
+lv_obj_t *ui_LabelPlayTitle;
+lv_obj_t *ui_ButtonDance;
+lv_obj_t *ui_LabelDance;
+lv_obj_t *ui_ButtonMood;
+lv_obj_t *ui_LabelMood;
+lv_obj_t *ui_SwitchRainbow;
+lv_obj_t *ui_LabelRainbow;
+lv_obj_t *ui_ButtonPlayBack;
+lv_obj_t *ui_LabelPlayBack;
+void ui_event_ButtonGoPlay(lv_event_t *e);
+void ui_event_ButtonDance(lv_event_t *e);
+void ui_event_ButtonMood(lv_event_t *e);
+void ui_event_ButtonPlayBack(lv_event_t *e);
+
 void ui_event_ButtonNetBack(lv_event_t *e);
+void ui_event_ButtonSensorBack(lv_event_t *e);
+void ui_event_ButtonStatusBack(lv_event_t *e);
 void ui_event____initial_actions0(lv_event_t *e);
 lv_obj_t *ui____initial_actions0;
 const lv_img_dsc_t *ui_imgset_listen_body_eyes_[2] = {
@@ -227,6 +251,50 @@ void get_eye_blink_Animation(lv_obj_t *TargetObject, int delay) {
   lv_anim_start(&PropertyAnimation_0);
 }
 
+void ui_anim_dance(lv_obj_t *target, int delay) {
+  // Horizontal jiggle
+  ui_anim_user_data_t *usr_x = lv_mem_alloc(sizeof(ui_anim_user_data_t));
+  usr_x->target = target;
+  lv_anim_t a_x;
+  lv_anim_init(&a_x);
+  lv_anim_set_time(&a_x, 200);
+  lv_anim_set_user_data(&a_x, usr_x);
+  lv_anim_set_custom_exec_cb(&a_x, _ui_anim_callback_set_x);
+  lv_anim_set_values(&a_x, -10, 10);
+  lv_anim_set_playback_time(&a_x, 200);
+  lv_anim_set_repeat_count(&a_x, 5);
+  lv_anim_set_deleted_cb(&a_x, _ui_anim_callback_free_user_data);
+  lv_anim_start(&a_x);
+
+  // Vertical hop
+  ui_anim_user_data_t *usr_y = lv_mem_alloc(sizeof(ui_anim_user_data_t));
+  usr_y->target = target;
+  lv_anim_t a_y;
+  lv_anim_init(&a_y);
+  lv_anim_set_time(&a_y, 150);
+  lv_anim_set_user_data(&a_y, usr_y);
+  lv_anim_set_custom_exec_cb(&a_y, _ui_anim_callback_set_y);
+  lv_anim_set_values(&a_y, 0, -30);
+  lv_anim_set_playback_time(&a_y, 150);
+  lv_anim_set_repeat_count(&a_y, 5);
+  lv_anim_set_deleted_cb(&a_y, _ui_anim_callback_free_user_data);
+  lv_anim_start(&a_y);
+}
+
+void ui_anim_eye_color(lv_obj_t *target) {
+  static int color_idx = 0;
+  lv_color_t colors[] = {
+      lv_color_hex(0x00FF00), // Green
+      lv_color_hex(0xFF0000), // Red
+      lv_color_hex(0x0000FF), // Blue
+      lv_color_hex(0xFFFF00), // Yellow
+      lv_color_hex(0xFF00FF)  // Magenta
+  };
+  lv_obj_set_style_img_recolor(target, colors[color_idx], 0);
+  lv_obj_set_style_img_recolor_opa(target, 255, 0);
+  color_idx = (color_idx + 1) % (sizeof(colors) / sizeof(colors[0]));
+}
+
 ///////////////////// FUNCTIONS ////////////////////
 void ui_event_ImageSetupWifiReset(lv_event_t *e) {
   lv_event_code_t event_code = lv_event_get_code(e);
@@ -306,6 +374,46 @@ void ui_event_ButtonGoNetwork(lv_event_t *e) {
   }
 }
 void ui_event_ButtonNetBack(lv_event_t *e) {
+  lv_event_code_t event_code = lv_event_get_code(e);
+  if (event_code == LV_EVENT_CLICKED) {
+    _ui_screen_change(ui_ScreenListen, LV_SCR_LOAD_ANIM_MOVE_RIGHT, 300, 0);
+  }
+}
+void ui_event_ButtonSensorBack(lv_event_t *e) {
+  lv_event_code_t event_code = lv_event_get_code(e);
+  if (event_code == LV_EVENT_CLICKED) {
+    _ui_screen_change(ui_ScreenListen, LV_SCR_LOAD_ANIM_MOVE_RIGHT, 300, 0);
+  }
+}
+void ui_event_ButtonStatusBack(lv_event_t *e) {
+  lv_event_code_t event_code = lv_event_get_code(e);
+  if (event_code == LV_EVENT_CLICKED) {
+    _ui_screen_change(ui_ScreenListen, LV_SCR_LOAD_ANIM_MOVE_RIGHT, 300, 0);
+  }
+}
+
+void ui_event_ButtonGoPlay(lv_event_t *e) {
+  lv_event_code_t event_code = lv_event_get_code(e);
+  if (event_code == LV_EVENT_CLICKED) {
+    _ui_screen_change(ui_ScreenPlay, LV_SCR_LOAD_ANIM_FADE_ON, 300, 0);
+  }
+}
+
+void ui_event_ButtonDance(lv_event_t *e) {
+  lv_event_code_t event_code = lv_event_get_code(e);
+  if (event_code == LV_EVENT_CLICKED) {
+    ui_anim_dance(ui_ImageListenBody, 0);
+  }
+}
+
+void ui_event_ButtonMood(lv_event_t *e) {
+  lv_event_code_t event_code = lv_event_get_code(e);
+  if (event_code == LV_EVENT_CLICKED) {
+    ui_anim_eye_color(ui_ImageListenEye);
+  }
+}
+
+void ui_event_ButtonPlayBack(lv_event_t *e) {
   lv_event_code_t event_code = lv_event_get_code(e);
   if (event_code == LV_EVENT_CLICKED) {
     _ui_screen_change(ui_ScreenListen, LV_SCR_LOAD_ANIM_MOVE_RIGHT, 300, 0);
@@ -415,6 +523,7 @@ void ui_init(void) {
   ui_ScreenWeather_screen_init();
   ui_ScreenStatus_screen_init();
   ui_ScreenNetwork_screen_init();
+  ui_ScreenPlay_screen_init();
   ui____initial_actions0 = lv_obj_create(NULL);
   lv_obj_add_event_cb(ui____initial_actions0, ui_event____initial_actions0,
                       LV_EVENT_ALL, NULL);

@@ -254,6 +254,16 @@ void ui_update_task(void *pvParameters) {
         }
       }
 
+      // 5. Kid-Friendly Rainbow Mode
+      if (ui_SwitchRainbow &&
+          lv_obj_has_state(ui_SwitchRainbow, LV_STATE_CHECKED)) {
+        static uint8_t hue = 0;
+        lv_color_t color = lv_color_hsv_to_rgb(hue++, 70, 80);
+        lv_obj_set_style_bg_color(lv_scr_act(), color, LV_PART_MAIN);
+        lv_obj_set_style_bg_opa(lv_scr_act(), LV_OPA_10,
+                                LV_PART_MAIN); // Subtle overlay
+      }
+
       bsp_display_unlock();
     }
 

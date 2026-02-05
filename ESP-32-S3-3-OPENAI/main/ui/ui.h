@@ -61,6 +61,8 @@ extern lv_obj_t *ui_ButtonGoSensors;
 extern lv_obj_t *ui_LabelGoSensors;
 extern lv_obj_t *ui_ButtonGoNetwork;
 extern lv_obj_t *ui_LabelGoNetwork;
+extern lv_obj_t *ui_ButtonGoPlay;
+extern lv_obj_t *ui_LabelGoPlay;
 extern lv_obj_t *ui_ContainerBigZ;
 extern lv_obj_t *ui_ContainerSmallZ;
 extern lv_obj_t *ui_PanelListen;
@@ -123,7 +125,10 @@ extern lv_obj_t *ui_LabelHumTitle;
 extern lv_obj_t *ui_LabelHumValue;
 extern lv_obj_t *ui_LabelPresenceTitle;
 extern lv_obj_t *ui_LabelPresenceValue;
+extern lv_obj_t *ui_ButtonSensorBack;
+extern lv_obj_t *ui_LabelSensorBack;
 void ui_event_ScreenSensors(lv_event_t *e);
+void ui_event_ButtonSensorBack(lv_event_t *e);
 
 // EVENT: event for ESP32_S3_BOX_Lite
 lv_group_t *ui_get_btn_op_group(void);
@@ -172,6 +177,30 @@ extern lv_obj_t *ui_ScreenStatus;
 extern lv_obj_t *ui_StatusClock;
 extern lv_obj_t *ui_LabelIPVal;
 extern lv_obj_t *ui_LabelLuxVal;
+extern lv_obj_t *ui_ButtonStatusBack;
+extern lv_obj_t *ui_LabelStatusBack;
+void ui_event_ButtonStatusBack(lv_event_t *e);
+
+// SCREEN: ui_ScreenPlay
+void ui_ScreenPlay_screen_init(void);
+extern lv_obj_t *ui_ScreenPlay;
+extern lv_obj_t *ui_LabelPlayTitle;
+extern lv_obj_t *ui_ButtonDance;
+extern lv_obj_t *ui_LabelDance;
+extern lv_obj_t *ui_ButtonMood;
+extern lv_obj_t *ui_LabelMood;
+extern lv_obj_t *ui_SwitchRainbow;
+extern lv_obj_t *ui_LabelRainbow;
+extern lv_obj_t *ui_ButtonPlayBack;
+extern lv_obj_t *ui_LabelPlayBack;
+void ui_event_ButtonGoPlay(lv_event_t *e);
+void ui_event_ButtonDance(lv_event_t *e);
+void ui_event_ButtonMood(lv_event_t *e);
+void ui_event_ButtonPlayBack(lv_event_t *e);
+
+// ANIMATIONS
+void ui_anim_dance(lv_obj_t *target, int delay);
+void ui_anim_eye_color(lv_obj_t *target);
 
 // SCREEN: ui_ScreenNetwork
 void ui_ScreenNetwork_screen_init(void);

@@ -67,4 +67,21 @@ void ui_ScreenStatus_screen_init(void) {
 
   lv_obj_add_event_cb(ui_ScreenStatus, ui_event_ScreenStatus, LV_EVENT_ALL,
                       NULL);
+
+  // BACK BUTTON
+  ui_ButtonStatusBack = lv_btn_create(ui_ScreenStatus);
+  lv_obj_set_width(ui_ButtonStatusBack, 80);
+  lv_obj_set_height(ui_ButtonStatusBack, 40);
+  lv_obj_set_align(ui_ButtonStatusBack, LV_ALIGN_BOTTOM_MID);
+  lv_obj_set_y(ui_ButtonStatusBack, -20);
+  lv_obj_add_event_cb(ui_ButtonStatusBack, ui_event_ButtonStatusBack,
+                      LV_EVENT_ALL, NULL);
+  lv_obj_set_style_bg_color(ui_ButtonStatusBack, lv_color_hex(0x607D8B),
+                            LV_PART_MAIN);
+  lv_obj_set_style_radius(ui_ButtonStatusBack, 20, LV_PART_MAIN);
+
+  ui_LabelStatusBack = lv_label_create(ui_ButtonStatusBack);
+  lv_obj_set_align(ui_LabelStatusBack, LV_ALIGN_CENTER);
+  lv_label_set_text(ui_LabelStatusBack, "BACK");
+  lv_obj_set_style_text_font(ui_LabelStatusBack, &ui_font_PingFangEN14, 0);
 }

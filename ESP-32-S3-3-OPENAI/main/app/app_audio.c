@@ -4,7 +4,6 @@
 #include <stdio.h>
 #include <string.h>
 
-
 #include "app_audio.h"
 #include "app_sensor.h"
 #include "app_sr.h"
@@ -369,6 +368,38 @@ void sr_handler_task(void *pvParam) {
         ui_ctrl_label_show_text(UI_CTRL_LABEL_REPLY_QUESTION, "Check Sensors");
         ui_ctrl_label_show_text(UI_CTRL_LABEL_REPLY_CONTENT, response_text);
 
+        continue;
+      }
+
+      if (result.command_id == 10) { // ROBOT DANCE
+        ESP_LOGI(TAG, "Voice Command: ROBOT DANCE");
+        ui_anim_dance(ui_ImageListenBody, 0);
+        continue;
+      }
+
+      if (result.command_id == 11) { // CHANGE MOOD
+        ESP_LOGI(TAG, "Voice Command: CHANGE MOOD");
+        ui_anim_eye_color(ui_ImageListenEye);
+        continue;
+      }
+
+      if (result.command_id == 12) { // RAINBOW MODE
+        ESP_LOGI(TAG, "Voice Command: RAINBOW MODE");
+        if (ui_SwitchRainbow) {
+          if (lv_obj_has_state(ui_SwitchRainbow, LV_STATE_CHECKED)) {
+            lv_obj_clear_state(ui_SwitchRainbow, LV_STATE_CHECKED);
+          } else {
+            lv_obj_add_state(ui_SwitchRainbow, LV_STATE_CHECKED);
+          }
+          lv_event_send(ui_SwitchRainbow, LV_EVENT_VALUE_CHANGED, NULL);
+        }
+        continue;
+      }
+
+      if (result.command_id == 13) { // GO PLAY
+        ESP_LOGI(TAG, "Voice Command: GO PLAY");
+        _ui_screen_change(ui_ScreenPlay, LV_SCR_LOAD_ANIM_FADE_ON, 300, 0);
+        ui_anim_dance(ui_ImageListenBody, 0);
         continue;
       }
 

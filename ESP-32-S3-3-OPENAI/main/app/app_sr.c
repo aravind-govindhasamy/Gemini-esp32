@@ -310,6 +310,10 @@ esp_err_t app_sr_start(bool record_en) {
   ret |= esp_mn_commands_add(7, "CLOSE");
   ret |= esp_mn_commands_add(8, "HI BRO");
   ret |= esp_mn_commands_add(9, "CHECK SENSORS");
+  ret |= esp_mn_commands_add(10, "ROBOT DANCE");
+  ret |= esp_mn_commands_add(11, "CHANGE MOOD");
+  ret |= esp_mn_commands_add(12, "RAINBOW MODE");
+  ret |= esp_mn_commands_add(13, "GO PLAY");
 
   if (ret != ESP_OK) {
     ESP_LOGE(TAG, "Failed to add regular commands!");

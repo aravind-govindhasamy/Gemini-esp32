@@ -275,6 +275,13 @@ void ui_ScreenListen_screen_init(void) {
                       LV_EVENT_ALL, NULL);
   lv_obj_set_style_bg_color(ui_ButtonGoSensors, lv_color_hex(0x2196F3),
                             LV_PART_MAIN);
+  lv_obj_set_style_radius(ui_ButtonGoSensors, 20, LV_PART_MAIN);
+  lv_obj_set_style_border_color(ui_ButtonGoSensors, lv_color_hex(0xFFFFFF),
+                                LV_PART_MAIN | LV_STATE_PRESSED);
+  lv_obj_set_style_border_width(ui_ButtonGoSensors, 1,
+                                LV_PART_MAIN | LV_STATE_PRESSED);
+  lv_obj_set_style_shadow_width(ui_ButtonGoSensors, 10, LV_PART_MAIN);
+  lv_obj_set_style_shadow_opa(ui_ButtonGoSensors, 100, LV_PART_MAIN);
 
   ui_LabelGoSensors = lv_label_create(ui_ButtonGoSensors);
   lv_obj_set_align(ui_LabelGoSensors, LV_ALIGN_CENTER);
@@ -292,11 +299,38 @@ void ui_ScreenListen_screen_init(void) {
                       LV_EVENT_ALL, NULL);
   lv_obj_set_style_bg_color(ui_ButtonGoNetwork, lv_color_hex(0x4CAF50),
                             LV_PART_MAIN);
+  lv_obj_set_style_radius(ui_ButtonGoNetwork, 20, LV_PART_MAIN);
+  lv_obj_set_style_border_color(ui_ButtonGoNetwork, lv_color_hex(0xFFFFFF),
+                                LV_PART_MAIN | LV_STATE_PRESSED);
+  lv_obj_set_style_border_width(ui_ButtonGoNetwork, 1,
+                                LV_PART_MAIN | LV_STATE_PRESSED);
+  lv_obj_set_style_shadow_width(ui_ButtonGoNetwork, 10, LV_PART_MAIN);
+  lv_obj_set_style_shadow_opa(ui_ButtonGoNetwork, 100, LV_PART_MAIN);
 
   ui_LabelGoNetwork = lv_label_create(ui_ButtonGoNetwork);
   lv_obj_set_align(ui_LabelGoNetwork, LV_ALIGN_CENTER);
   lv_label_set_text(ui_LabelGoNetwork, "NETWORK");
   lv_obj_set_style_text_font(ui_LabelGoNetwork, &ui_font_PingFangEN14, 0);
+
+  // PLAY BUTTON (Central)
+  ui_ButtonGoPlay = lv_btn_create(ui_PanelSleep);
+  lv_obj_set_width(ui_ButtonGoPlay, 80);
+  lv_obj_set_height(ui_ButtonGoPlay, 40);
+  lv_obj_set_align(ui_ButtonGoPlay, LV_ALIGN_BOTTOM_MID);
+  lv_obj_set_x(ui_ButtonGoPlay, 0);
+  lv_obj_set_y(ui_ButtonGoPlay, -10);
+  lv_obj_add_event_cb(ui_ButtonGoPlay, ui_event_ButtonGoPlay, LV_EVENT_ALL,
+                      NULL);
+  lv_obj_set_style_bg_color(ui_ButtonGoPlay, lv_color_hex(0xFF9800),
+                            LV_PART_MAIN); // Vibrant Orange
+  lv_obj_set_style_radius(ui_ButtonGoPlay, 20, LV_PART_MAIN);
+  lv_obj_set_style_shadow_width(ui_ButtonGoPlay, 10, LV_PART_MAIN);
+  lv_obj_set_style_shadow_opa(ui_ButtonGoPlay, 100, LV_PART_MAIN);
+
+  ui_LabelGoPlay = lv_label_create(ui_ButtonGoPlay);
+  lv_obj_set_align(ui_LabelGoPlay, LV_ALIGN_CENTER);
+  lv_label_set_text(ui_LabelGoPlay, "PLAY");
+  lv_obj_set_style_text_font(ui_LabelGoPlay, &ui_font_PingFangEN14, 0);
 
   ui_PanelListen = lv_obj_create(ui_ScreenListen);
   lv_obj_set_width(ui_PanelListen, 320);

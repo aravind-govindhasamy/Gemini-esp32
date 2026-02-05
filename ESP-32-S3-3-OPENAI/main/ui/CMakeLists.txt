@@ -7,6 +7,7 @@ SET(SOURCES screens/ui_ScreenSetup.c
     screens/ui_ScreenWeather.c
     screens/ui_ScreenStatus.c
     screens/ui_ScreenNetwork.c
+    screens/ui_ScreenPlay.c
     ui.c
     ui_helpers.c
     images/ui_img_setup_bg_png.c

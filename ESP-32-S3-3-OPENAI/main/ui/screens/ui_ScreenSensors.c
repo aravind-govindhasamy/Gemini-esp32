@@ -113,4 +113,21 @@ void ui_ScreenSensors_screen_init(void) {
 
   lv_obj_add_event_cb(ui_ScreenSensors, ui_event_ScreenSensors, LV_EVENT_ALL,
                       NULL);
+
+  // BACK BUTTON
+  ui_ButtonSensorBack = lv_btn_create(ui_ScreenSensors);
+  lv_obj_set_width(ui_ButtonSensorBack, 80);
+  lv_obj_set_height(ui_ButtonSensorBack, 40);
+  lv_obj_set_align(ui_ButtonSensorBack, LV_ALIGN_BOTTOM_MID);
+  lv_obj_set_y(ui_ButtonSensorBack, -20);
+  lv_obj_add_event_cb(ui_ButtonSensorBack, ui_event_ButtonSensorBack,
+                      LV_EVENT_ALL, NULL);
+  lv_obj_set_style_bg_color(ui_ButtonSensorBack, lv_color_hex(0x607D8B),
+                            LV_PART_MAIN);
+  lv_obj_set_style_radius(ui_ButtonSensorBack, 20, LV_PART_MAIN);
+
+  ui_LabelSensorBack = lv_label_create(ui_ButtonSensorBack);
+  lv_obj_set_align(ui_LabelSensorBack, LV_ALIGN_CENTER);
+  lv_label_set_text(ui_LabelSensorBack, "BACK");
+  lv_obj_set_style_text_font(ui_LabelSensorBack, &ui_font_PingFangEN14, 0);
 }
