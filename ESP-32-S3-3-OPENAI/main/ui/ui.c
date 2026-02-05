@@ -55,6 +55,10 @@ lv_obj_t *ui_ImageListenBackGlow;
 lv_obj_t *ui_ImageListenBody;
 lv_obj_t *ui_ImageListenEyeScreen;
 lv_obj_t *ui_ImageListenEye;
+lv_obj_t *ui_ButtonGoSensors;
+lv_obj_t *ui_LabelGoSensors;
+lv_obj_t *ui_ButtonGoNetwork;
+lv_obj_t *ui_LabelGoNetwork;
 lv_obj_t *ui_PanelGet;
 lv_obj_t *ui_ImageGetBackGlow;
 lv_obj_t *ui_ImageGetBody;
@@ -99,6 +103,17 @@ lv_obj_t *ui_ButtonResetConfirm;
 lv_obj_t *ui_LabelSetupBtn2;
 void ui_event_ImageResetBack(lv_event_t *e);
 lv_obj_t *ui_ImageResetBack;
+
+// SCREEN: ui_ScreenNetwork
+void ui_ScreenNetwork_screen_init(void);
+lv_obj_t *ui_ScreenNetwork;
+lv_obj_t *ui_LabelNetTitle;
+lv_obj_t *ui_LabelNetIP;
+lv_obj_t *ui_LabelNetHub;
+lv_obj_t *ui_LabelNetGW;
+lv_obj_t *ui_ButtonNetBack;
+lv_obj_t *ui_LabelNetBack;
+void ui_event_ButtonNetBack(lv_event_t *e);
 void ui_event____initial_actions0(lv_event_t *e);
 lv_obj_t *ui____initial_actions0;
 const lv_img_dsc_t *ui_imgset_listen_body_eyes_[2] = {
@@ -278,6 +293,24 @@ void ui_event_PanelSleep(lv_event_t *e) {
     EventPanelSleepClickCb(e);
   }
 }
+void ui_event_ButtonGoSensors(lv_event_t *e) {
+  lv_event_code_t event_code = lv_event_get_code(e);
+  if (event_code == LV_EVENT_CLICKED) {
+    _ui_screen_change(ui_ScreenSensors, LV_SCR_LOAD_ANIM_MOVE_RIGHT, 300, 0);
+  }
+}
+void ui_event_ButtonGoNetwork(lv_event_t *e) {
+  lv_event_code_t event_code = lv_event_get_code(e);
+  if (event_code == LV_EVENT_CLICKED) {
+    _ui_screen_change(ui_ScreenNetwork, LV_SCR_LOAD_ANIM_MOVE_LEFT, 300, 0);
+  }
+}
+void ui_event_ButtonNetBack(lv_event_t *e) {
+  lv_event_code_t event_code = lv_event_get_code(e);
+  if (event_code == LV_EVENT_CLICKED) {
+    _ui_screen_change(ui_ScreenListen, LV_SCR_LOAD_ANIM_MOVE_RIGHT, 300, 0);
+  }
+}
 
 // ui_event_ImageListenSettings moved to ui_ScreenStatus.c
 /*This function is for Server selection currently not using*/
@@ -381,6 +414,7 @@ void ui_init(void) {
   ui_ScreenSensors_screen_init();
   ui_ScreenWeather_screen_init();
   ui_ScreenStatus_screen_init();
+  ui_ScreenNetwork_screen_init();
   ui____initial_actions0 = lv_obj_create(NULL);
   lv_obj_add_event_cb(ui____initial_actions0, ui_event____initial_actions0,
                       LV_EVENT_ALL, NULL);

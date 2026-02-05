@@ -3,6 +3,10 @@ SET(SOURCES screens/ui_ScreenSetup.c
     screens/ui_ScreenListen.c
     screens/ui_ScreenSettings.c
     screens/ui_ScreenReset.c
+    screens/ui_ScreenSensors.c
+    screens/ui_ScreenWeather.c
+    screens/ui_ScreenStatus.c
+    screens/ui_ScreenNetwork.c
     ui.c
     ui_helpers.c
     images/ui_img_setup_bg_png.c

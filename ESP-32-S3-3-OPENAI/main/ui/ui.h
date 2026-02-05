@@ -52,9 +52,15 @@ extern lv_obj_t *ui_PanelSleep;
 extern lv_obj_t *ui_ImageSleepBody;
 extern lv_obj_t *ui_LabelTime;
 extern lv_obj_t *ui_LabelDate;
+void ui_event_ButtonGoSensors(lv_event_t *e);
+void ui_event_ButtonGoNetwork(lv_event_t *e);
 // ui_BtnSensors removed
 extern lv_obj_t *ui_Image3;
 extern lv_obj_t *ui_ImageSleepEye;
+extern lv_obj_t *ui_ButtonGoSensors;
+extern lv_obj_t *ui_LabelGoSensors;
+extern lv_obj_t *ui_ButtonGoNetwork;
+extern lv_obj_t *ui_LabelGoNetwork;
 extern lv_obj_t *ui_ContainerBigZ;
 extern lv_obj_t *ui_ContainerSmallZ;
 extern lv_obj_t *ui_PanelListen;
@@ -166,6 +172,17 @@ extern lv_obj_t *ui_ScreenStatus;
 extern lv_obj_t *ui_StatusClock;
 extern lv_obj_t *ui_LabelIPVal;
 extern lv_obj_t *ui_LabelLuxVal;
+
+// SCREEN: ui_ScreenNetwork
+void ui_ScreenNetwork_screen_init(void);
+extern lv_obj_t *ui_ScreenNetwork;
+extern lv_obj_t *ui_LabelNetTitle;
+extern lv_obj_t *ui_LabelNetIP;
+extern lv_obj_t *ui_LabelNetHub;
+extern lv_obj_t *ui_LabelNetGW;
+extern lv_obj_t *ui_ButtonNetBack;
+extern lv_obj_t *ui_LabelNetBack;
+void ui_event_ButtonNetBack(lv_event_t *e);
 
 void ui_init(void);
 

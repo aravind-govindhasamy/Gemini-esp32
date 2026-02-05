@@ -264,6 +264,40 @@ void ui_ScreenListen_screen_init(void) {
   lv_obj_set_style_text_line_space(ui_LabelBranding, 5,
                                    LV_PART_MAIN | LV_STATE_DEFAULT);
 
+  // SENSORS BUTTON
+  ui_ButtonGoSensors = lv_btn_create(ui_PanelSleep);
+  lv_obj_set_width(ui_ButtonGoSensors, 80);
+  lv_obj_set_height(ui_ButtonGoSensors, 40);
+  lv_obj_set_align(ui_ButtonGoSensors, LV_ALIGN_BOTTOM_LEFT);
+  lv_obj_set_x(ui_ButtonGoSensors, 10);
+  lv_obj_set_y(ui_ButtonGoSensors, -10);
+  lv_obj_add_event_cb(ui_ButtonGoSensors, ui_event_ButtonGoSensors,
+                      LV_EVENT_ALL, NULL);
+  lv_obj_set_style_bg_color(ui_ButtonGoSensors, lv_color_hex(0x2196F3),
+                            LV_PART_MAIN);
+
+  ui_LabelGoSensors = lv_label_create(ui_ButtonGoSensors);
+  lv_obj_set_align(ui_LabelGoSensors, LV_ALIGN_CENTER);
+  lv_label_set_text(ui_LabelGoSensors, "SENSORS");
+  lv_obj_set_style_text_font(ui_LabelGoSensors, &ui_font_PingFangEN14, 0);
+
+  // NETWORK BUTTON
+  ui_ButtonGoNetwork = lv_btn_create(ui_PanelSleep);
+  lv_obj_set_width(ui_ButtonGoNetwork, 80);
+  lv_obj_set_height(ui_ButtonGoNetwork, 40);
+  lv_obj_set_align(ui_ButtonGoNetwork, LV_ALIGN_BOTTOM_RIGHT);
+  lv_obj_set_x(ui_ButtonGoNetwork, -10);
+  lv_obj_set_y(ui_ButtonGoNetwork, -10);
+  lv_obj_add_event_cb(ui_ButtonGoNetwork, ui_event_ButtonGoNetwork,
+                      LV_EVENT_ALL, NULL);
+  lv_obj_set_style_bg_color(ui_ButtonGoNetwork, lv_color_hex(0x4CAF50),
+                            LV_PART_MAIN);
+
+  ui_LabelGoNetwork = lv_label_create(ui_ButtonGoNetwork);
+  lv_obj_set_align(ui_LabelGoNetwork, LV_ALIGN_CENTER);
+  lv_label_set_text(ui_LabelGoNetwork, "NETWORK");
+  lv_obj_set_style_text_font(ui_LabelGoNetwork, &ui_font_PingFangEN14, 0);
+
   ui_PanelListen = lv_obj_create(ui_ScreenListen);
   lv_obj_set_width(ui_PanelListen, 320);
   lv_obj_set_height(ui_PanelListen, 240);

@@ -217,6 +217,43 @@ void ui_update_task(void *pvParameters) {
       snprintf(sensor_str, sizeof(sensor_str), "%.0f%%", hum);
       if (ui_LabelHumValue)
         lv_label_set_text(ui_LabelHumValue, sensor_str);
+
+      // Presence
+      bool presence = app_sensor_get_presence();
+      if (ui_LabelPresenceValue) {
+        lv_label_set_text(ui_LabelPresenceValue,
+                          presence ? "DETECTED" : "NONE");
+        lv_obj_set_style_text_color(
+            ui_LabelPresenceValue,
+            presence ? lv_color_hex(0xFF0000) : lv_color_hex(0xFFFFFF), 0);
+      }
+
+      // 4. Update Network Info
+      esp_netif_ip_info_t ip_info;
+      esp_netif_t *netif = esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");
+      if (netif && esp_netif_get_ip_info(netif, &ip_info) == ESP_OK) {
+        char ip_str[32];
+        char gw_str[32];
+        esp_ip4addr_ntoa(&ip_info.ip, ip_str, sizeof(ip_str));
+        esp_ip4addr_ntoa(&ip_info.gw, gw_str, sizeof(gw_str));
+
+        if (ui_LabelNetIP)
+          lv_label_set_text(ui_LabelNetIP, ip_str);
+        if (ui_LabelNetGW)
+          lv_label_set_text(ui_LabelNetGW, gw_str);
+
+        char hub_info[64];
+        snprintf(hub_info, sizeof(hub_info), "%s:8000", sys_param->hub_ip);
+        if (ui_LabelNetHub)
+          lv_label_set_text(ui_LabelNetHub, hub_info);
+
+        if (ui_LabelIPVal) {
+          char short_ip[64]; // Increased from 32 to resolve truncation error
+          snprintf(short_ip, sizeof(short_ip), "IP: %s", ip_str);
+          lv_label_set_text(ui_LabelIPVal, short_ip);
+        }
+      }
+
       bsp_display_unlock();
     }
 
